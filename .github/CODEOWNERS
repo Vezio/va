@@ -1,0 +1,4 @@
+# Code owners are requested for review on pull requests that change the matching paths.
+# Later patterns take precedence over earlier ones.
+
+* @Vezio @albertoperdomo2
