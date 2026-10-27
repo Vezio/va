@@ -355,3 +355,41 @@ def test_layers_are_ordered_whatever_order_the_file_lists_them(tmp_path):
         "  - {name: g, kind: proxy, behind: e, base_url_env: G_URL}\n"
     )
     assert [t.name for t in load(path).targets] == ["g", "e"]
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["-q", "--log-format", "json", "run"],
+        ["run", "-q", "--log-format", "json"],
+        ["--log-format", "text", "run", "-q", "--log-format", "json"],
+    ],
+)
+def test_logging_flags_apply_before_or_after_the_command(argv):
+    """Verify that logging flags take effect whether given before or after the command name."""
+    args, _ = build_app().build_parser().parse_known_args(argv)
+    assert args.quiet is True
+    assert args.log_format == "json"
+
+
+def test_logging_flags_default_when_omitted():
+    """Verify that the logging flags keep their defaults when given nowhere."""
+    args, _ = build_app().build_parser().parse_known_args(["run"])
+    assert (args.log_level, args.quiet, args.log_format, args.no_color) == (
+        "INFO",
+        False,
+        "text",
+        False,
+    )
+
+
+def test_publish_and_compare_use_the_group_recorded_in_the_run(stack_env, tmp_path):
+    """Verify that publish and compare fall back to the run's recorded group."""
+    archive = f"file://{tmp_path / 'archive'}"
+    stack_env()
+    code, run_dir = run(tmp_path, "-k", "models")
+    assert code == ExitCode.OK
+    app = build_app()
+    assert app.main(["publish", str(run_dir), "--remote-output", archive]) == ExitCode.OK
+    assert (tmp_path / "archive" / "demo-stack" / run_dir.name / "MANIFEST.json").is_file()
+    assert app.main(["compare", str(run_dir), "--remote-output", archive]) == ExitCode.OK

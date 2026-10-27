@@ -127,8 +127,10 @@ mytool compare runs/2026-10-27T02-08-44-123Z-ab12 --remote-output s3://results/s
 mytool notify  runs/2026-10-27T02-08-44-123Z-ab12 --notify slack:env:SLACK_WEBHOOK
 ```
 
-`publish` and `compare` need `--remote-output` and `--group` (or their variables); `notify` needs
-`--notify`. `compare` reports and exits `0`; add `--fail-on-regression` to exit `1` when there is
+`publish` and `compare` need `--remote-output` (or its variable). The group defaults to the one
+recorded in the run's `outcome.json`, which is the group the run was created with; `--group` (or
+its variable) overrides it. A destination whose scheme no sink supports is a usage error (exit
+`2`). `notify` needs `--notify`. `compare` reports and exits `0`; add `--fail-on-regression` to exit `1` when there is
 a regression.
 
 ## The run directory

@@ -484,10 +484,7 @@ class RunOptions:
         if args.metrics_file:
             outputs.append(MetricsFile(Path(args.metrics_file), prefix=app.settings.prefix.lower()))
         if args.remote_output:
-            try:
-                sink_for(args.remote_output)
-            except UnsupportedDestination as exc:
-                raise UsageError(str(exc)) from exc
+            _check_destination(args.remote_output)
         if args.run_dir:
             run = RunDir.at(args.run_dir)
         else:
@@ -550,12 +547,15 @@ class PublishCommand:
             OK if the run was delivered, otherwise NOT_DELIVERED.
 
         Raises:
-            UsageError: If the destination or the group is not set.
+            UsageError: If the destination is not set, or the group is neither given nor
+                recorded in the run's outcome.
         """
-        if not (args.remote_output and args.group):
-            raise UsageError("publish needs --remote-output and --group (or their variables)")
         run = RunDir(args.run_dir.resolve())
-        publication = deliver(run, args.remote_output, args.group)
+        group = _group_for(args, run)
+        if not (args.remote_output and group):
+            raise UsageError("publish needs --remote-output and --group (or their variables)")
+        _check_destination(args.remote_output)
+        publication = deliver(run, args.remote_output, group)
         outcome = run.outcome()
         if outcome is not None:
             outcome.publication = publication
@@ -608,17 +608,53 @@ class CompareCommand:
             otherwise OK.
 
         Raises:
-            UsageError: If the archive location or the group is not set.
+            UsageError: If the archive location is not set, or the group is neither given nor
+                recorded in the run's outcome.
         """
-        if not (args.remote_output and args.group):
+        run = RunDir(args.run_dir.resolve())
+        group = _group_for(args, run)
+        if not (args.remote_output and group):
             raise UsageError("compare needs --remote-output and --group (or their variables)")
+        _check_destination(args.remote_output)
         baseline = Baseline(args.compare_window, args.baseline_label or None, args.baseline)
-        result = compare_with_archive(
-            RunDir(args.run_dir.resolve()), args.remote_output, args.group, baseline
-        )
+        result = compare_with_archive(run, args.remote_output, group, baseline)
         emit(result.markdown())
         failed = args.fail_on_regression and result.regressed
         return ExitCode.FAILURES if failed else ExitCode.OK
+
+
+def _check_destination(uri: str) -> None:
+    """Reject a results destination whose scheme no registered sink supports.
+
+    Args:
+        uri: The destination URI.
+
+    Raises:
+        UsageError: If no sink supports the URI's scheme.
+    """
+    try:
+        sink_for(uri)
+    except UnsupportedDestination as exc:
+        raise UsageError(str(exc)) from exc
+
+
+def _group_for(args: argparse.Namespace, run: RunDir) -> str | None:
+    """Return the archive group for a command that acts on an existing run directory.
+
+    `--group` (or its variable) takes precedence. Otherwise the group recorded in the run's
+    outcome is used, which is the group the run was created with.
+
+    Args:
+        args: Parsed arguments with a `group` attribute.
+        run: The run directory.
+
+    Returns:
+        The group, or None if it is neither given nor recorded.
+    """
+    if args.group:
+        return args.group
+    outcome = run.outcome()
+    return outcome.group if outcome is not None and outcome.group else None
 
 
 class NotifyCommand:

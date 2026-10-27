@@ -36,7 +36,8 @@ src/mytool/
   cli.py            the `run` and `profile` commands; job, publish, compare, notify are built in
   profile.py        what a profile may declare, and how it is validated
   client.py         a recording HTTP client: every request and response is kept as evidence
-  cases/            the checks, one module per group
+  registry.py       REGISTRY, the registry the cases are added to
+  cases/            the checks, one module per group; __init__.py imports each module
 profiles/           an example profile
 tests/              a fake server with switchable defects, and tests against it
 container/          the runner image definition

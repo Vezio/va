@@ -174,32 +174,18 @@ class App:
         Returns:
             The top-level parser.
         """
-        shared = argparse.ArgumentParser(add_help=False)
-        group = shared.add_argument_group("logging")
-        group.add_argument(
-            "--log-level",
-            default="INFO",
-            choices=["DEBUG", "INFO", "WARNING", "ERROR"],
-            help="diagnostics on stderr at this level and above (default INFO); "
-            "the run's own run.log always has DEBUG",
-        )
-        group.add_argument("-q", "--quiet", action="store_true", help="warnings and errors only")
-        group.add_argument(
-            "--log-format",
-            default="text",
-            choices=["text", "json"],
-            help="json writes one object per diagnostic line, for log collectors",
-        )
-        group.add_argument("--no-color", action="store_true", help="never emit colour")
         parser = argparse.ArgumentParser(
             prog=self.prog,
             description=self.description,
             epilog=ExitCode.epilog(),
-            parents=[shared],
+            parents=[_logging_parser(with_defaults=True)],
             allow_abbrev=False,
         )
         parser.add_argument("--version", action="version", version=f"{self.prog} {self.version}")
         sub = parser.add_subparsers(dest="command", required=True)
+        # The command-level copies of the logging flags have no defaults, so that a flag given
+        # before the command name is not overwritten when it is omitted after it.
+        shared = _logging_parser(with_defaults=False)
         for command in self.commands.values():
             child = sub.add_parser(
                 command.name,
@@ -255,6 +241,52 @@ class App:
             return ExitCode.INTERNAL
         finally:
             signal.signal(signal.SIGTERM, previous)
+
+
+def _logging_parser(*, with_defaults: bool) -> argparse.ArgumentParser:
+    """Return a parent parser holding the shared logging flags.
+
+    The flags are accepted both before and after the command name. The top-level parser carries
+    the defaults; each command's parser uses `argparse.SUPPRESS`, so that an omitted flag leaves
+    the value parsed at the top level unchanged.
+
+    Args:
+        with_defaults: Whether the flags carry their default values.
+
+    Returns:
+        A parser without help, for use in `parents`.
+    """
+
+    def default(value: object) -> object:
+        """Return the value, or `argparse.SUPPRESS` when defaults are disabled."""
+        return value if with_defaults else argparse.SUPPRESS
+
+    shared = argparse.ArgumentParser(add_help=False)
+    group = shared.add_argument_group("logging")
+    group.add_argument(
+        "--log-level",
+        default=default("INFO"),
+        choices=["DEBUG", "INFO", "WARNING", "ERROR"],
+        help="diagnostics on stderr at this level and above (default INFO); "
+        "the run's own run.log always has DEBUG",
+    )
+    group.add_argument(
+        "-q",
+        "--quiet",
+        action="store_true",
+        default=default(False),
+        help="warnings and errors only",
+    )
+    group.add_argument(
+        "--log-format",
+        default=default("text"),
+        choices=["text", "json"],
+        help="json writes one object per diagnostic line, for log collectors",
+    )
+    group.add_argument(
+        "--no-color", action="store_true", default=default(False), help="never emit colour"
+    )
+    return shared
 
 
 def _interrupt(signum, frame):  # noqa: ARG001

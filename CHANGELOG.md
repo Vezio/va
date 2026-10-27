@@ -25,6 +25,12 @@ existing tool is marked **changed**.
   framework names from the `va` package root. Tools created from an earlier template continue to
   work; the change is in layout only.
 - `emit`, `get_logger` and `Layered` are exported from the `va` package root.
+- Fixed: logging flags given before the command name (`mytool -q run`, `mytool --log-format json
+  run`) were overridden by the command's defaults and had no effect. They now apply wherever they
+  are given.
+- `publish` and `compare` use the group recorded in the run directory when `--group` is not
+  given, as `job` already did, and report an unsupported destination scheme as a usage error
+  (exit 2) instead of a failed delivery (exit 5).
 - `scripts/new-app.sh --local` installs the framework checkout in editable mode. It used to
   depend on a `file://` URL, and pip reused a cached wheel of an older framework in its place.
 
