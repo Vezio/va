@@ -21,7 +21,7 @@ out=demo/local/out
 rm -rf "$out"
 mkdir -p "$out"
 archive="file://$PWD/$out/archive"
-profile=examples/modelcheck/profiles/stack.toml
+profile=examples/modelcheck/profiles/stack.yaml
 stack_pid=""
 
 stop_stack() {

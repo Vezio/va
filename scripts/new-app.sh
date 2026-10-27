@@ -186,9 +186,9 @@ Requirements: Python 3.11 or later.
 \`\`\`sh
 python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
 .venv/bin/python -m pytest -q
-.venv/bin/$name profile show profiles/example.toml
+.venv/bin/$name profile show profiles/example.yaml
 GATEWAY_URL=https://... GATEWAY_TOKEN=... BACKEND_URL=https://... \\
-  .venv/bin/$name run --profile profiles/example.toml --html
+  .venv/bin/$name run --profile profiles/example.yaml --html
 \`\`\`
 
 ## Project layout

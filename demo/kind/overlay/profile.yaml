@@ -1,0 +1,9 @@
+# The in-cluster profile: the target is reached by its Service name, given in app-settings.
+name: demo
+
+targets:
+  - name: target
+    base_url_env: TARGET_URL
+    capabilities: [health, json]
+    health_path: /json
+    max_latency_ms: 2000

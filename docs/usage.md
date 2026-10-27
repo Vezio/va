@@ -58,7 +58,7 @@ command line wins over its variable. CronJobs and CI set the variables; people u
 ## `run`
 
 ```sh
-mytool run --profile profiles/staging.toml -k chat --html
+mytool run --profile profiles/staging.yaml -k chat --html
 ```
 
 | Flag | |
@@ -98,7 +98,7 @@ diagnostics to stderr, so `mytool run ... > report.txt` keeps the report.
 ## `job`
 
 ```sh
-mytool job --profile /etc/mytool/profile.toml --compare --label trigger=nightly
+mytool job --profile /etc/mytool/profile.yaml --compare --label trigger=nightly
 ```
 
 `job` runs `run` as a child process, then compares, publishes and notifies itself, so a run that
@@ -192,7 +192,7 @@ secret, such as a webhook URL.
 | `log` | nothing (`log:`) | the title and counts on stdout |
 
 ```sh
-mytool run --profile p.toml --notify slack:env:SLACK_WEBHOOK --notify webhook:env:ALERTS_URL
+mytool run --profile p.yaml --notify slack:env:SLACK_WEBHOOK --notify webhook:env:ALERTS_URL
 ```
 
 Each channel is delivered on its own, with bounded retries; one failing does not stop the others,

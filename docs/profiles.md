@@ -24,48 +24,45 @@ looking.
 
 ## A worked example
 
-[`examples/modelcheck/profiles/stack.toml`](../examples/modelcheck/profiles/stack.toml)
+[`examples/modelcheck/profiles/stack.yaml`](../examples/modelcheck/profiles/stack.yaml)
 describes a gateway, and the engine behind it:
 
-```toml
-name = "demo-stack"
-description = "the gateway and the engine behind it"
+```yaml
+name: demo-stack
+description: the gateway and the engine behind it
 
 # Defaults for every target; a target may override them.
-model = "demo-model"
-max_latency_ms = 800
+model: demo-model
+max_latency_ms: 800              # an engine answers directly, so the default is tight
 
-[[targets]]
-name = "gateway"
-base_url_env = "GATEWAY_URL"
-key_env = "GATEWAY_TOKEN"
-capabilities = ["models", "chat", "stream", "auth"]
-max_latency_ms = 1500           # the gateway adds a hop: its own, looser budget
+targets:
+  - name: gateway
+    base_url_env: GATEWAY_URL
+    key_env: GATEWAY_TOKEN
+    capabilities: [models, chat, stream, auth]
+    max_latency_ms: 1500         # the gateway adds a hop: its own, looser budget
+    expect:
+      unknown_model_status: 404  # a correct gateway passes the engine's 404 through
+      bad_key_status: 401
 
-[targets.expect]
-unknown_model_status = 404      # a correct gateway passes the engine's 404 through
-bad_key_status = 401
-
-[[targets]]
-name = "engine"
-base_url_env = "ENGINE_URL"
-capabilities = ["models", "chat", "stream"]   # no auth on the engine: the auth case skips here
-
-[targets.expect]
-unknown_model_status = 404
+  - name: engine
+    base_url_env: ENGINE_URL
+    capabilities: [models, chat, stream]   # no auth on the engine: the auth case skips here
+    expect:
+      unknown_model_status: 404
 ```
 
 What each part does:
 
 | Feature | In the file | Effect |
 |---|---|---|
-| **Several targets, one set of cases** | two `[[targets]]` | every case runs once per target; comparing the two columns shows which layer a problem is in |
+| **Several targets, one set of cases** | two entries under `targets` | every case runs once per target; comparing the two columns shows which layer a problem is in |
 | **Variables, not values** | `base_url_env`, `key_env` | the profile can be committed and shared; the run reads `$GATEWAY_URL` and `$GATEWAY_TOKEN`, and the key is redacted everywhere |
 | **Defaults with overrides** | `model`, `max_latency_ms` at the top, overridden per target | say a thing once; differ only where a target really differs |
-| **Capabilities** | `capabilities = [...]` | a case that `needs` something a target does not declare is skipped there, with the reason `undeclared`, never silently passed |
-| **Declared behaviour** | `[targets.expect]` | cases read the expected answer from the profile, so one case serves layers that legitimately answer differently |
+| **Capabilities** | `capabilities: [...]` | a case that `needs` something a target does not declare is skipped there, with the reason `undeclared`, never silently passed |
+| **Declared behaviour** | `expect:` under a target | cases read the expected answer from the profile, so one case serves layers that legitimately answer differently |
 
-Run `modelcheck profile show examples/modelcheck/profiles/stack.toml` to see what would run on
+Run `modelcheck profile show examples/modelcheck/profiles/stack.yaml` to see what would run on
 each target, and what would be skipped and why.
 
 ## Designing yours
@@ -77,7 +74,7 @@ Start from what your cases need to know, and declare nothing they will not read.
    column heading in every report and the key for comparing runs.
 2. **Name, do not write, the connection details.** Each target gets a `base_url_env`, and a
    `key_env` if it needs a credential. Put real values in the environment, or in a
-   `<name>.local.toml` copy that Git ignores.
+   `<name>.local.yaml` copy that Git ignores.
 3. **Choose your capabilities.** One word per feature a target may or may not have (`stream`,
    `auth`, `tools`). Cases declare `needs={...}`; a target without the capability skips the case.
    Keep the vocabulary closed: the loader rejects unknown words, so a typo cannot quietly turn a
@@ -110,7 +107,7 @@ class Target:                       # the framework needs `name` and `capabiliti
 
 
 def load(path: Path) -> Profile:
-    data = profile.load(path)       # TOML, JSON or YAML, by suffix
+    data = profile.load(path)       # YAML (or TOML, JSON), by suffix
     p = Problems()                  # collects problems; validation continues past each one
     p.unknown_keys(data, TOP_KEYS)  # a misspelled key is reported, with the closest match
     name = p.require(data, "name", str)
@@ -136,8 +133,8 @@ The `Problems` collector:
 A profile with mistakes gets every one of them back:
 
 ```
-$ modelcheck profile validate broken.toml
-error: broken.toml: 8 problem(s):
+$ modelcheck profile validate broken.yaml
+error: broken.yaml: 8 problem(s):
   modle: is not a known key; did you mean 'model'?
   name: must be str, not int
   targets[0].capabilites: is not a known key; did you mean 'capabilities'?
@@ -151,6 +148,26 @@ error: broken.toml: 8 problem(s):
 `profile.digest(data)` hashes the declarations. Record it with each run (the examples put it in
 the run's `subject`): when two runs disagree, a changed digest tells the reader the profile
 changed before they look at the system.
+
+## File format
+
+Profiles are YAML by default; TOML (`.toml`) and JSON (`.json`) are also accepted, and another
+format is a plugin (see [Extending](extending.md#a-profile-format)). The format follows the file's
+suffix, and the same schema and validation apply to all of them.
+
+YAML is read with `safe_load`, which never constructs Python objects. Its implicit typing still
+deserves care: an unquoted value that looks like a number, a boolean or a date becomes one.
+
+| Written | Read as | Write instead |
+|---|---|---|
+| `model: 1.10` | the number `1.1` | `model: "1.10"` |
+| `region: no` | `false` | `region: "no"` |
+| `version: 2024-05-01` | a date | `version: "2024-05-01"` |
+| a tab in the indentation | an error | spaces only |
+
+The loader catches most of these: a field declared as a string that arrives as a number or a
+boolean is reported with its path (`targets[0].model: must be str, not float`). Quote any string
+that could be read as something else.
 
 ## Reading declarations in cases
 
@@ -187,7 +204,7 @@ with code 3 (your environment), not 1 (the target). See `preflight_checks` in th
 
 ## Profiles per environment
 
-Keep one profile per system you test (`staging.toml`, `production.toml`), with the same schema.
+Keep one profile per system you test (`staging.yaml`, `production.yaml`), with the same schema.
 The run's archive group defaults to the profile's `name`, so runs are only ever compared with
 earlier runs of the same profile.
 
@@ -200,3 +217,6 @@ earlier runs of the same profile.
 - Odd-looking declarations carry a comment saying why they are right.
 - `profile validate` and `profile show` pass, and a test feeds the loader a broken profile and
   checks the problems it reports.
+
+To add settings, capabilities, declarations or credentials to an existing schema, and to change
+it without breaking profiles already in use, see [Extending profiles](extending-profiles.md).

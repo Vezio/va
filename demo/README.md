@@ -22,7 +22,7 @@ OpenAI-compatible serving stack on free local ports: an **engine**, and a **gate
 of it that authenticates requests and forwards them. It then verifies the stack with
 [`modelcheck`](../examples/modelcheck).
 
-The profile, [`stack.toml`](../examples/modelcheck/profiles/stack.toml), declares both layers and
+The profile, [`stack.yaml`](../examples/modelcheck/profiles/stack.yaml), declares both layers and
 the behaviour expected of each: the model served, the status returned for an unknown model, a
 latency budget per layer, and that only the gateway requires an API key. The following checks
 run against each layer:
@@ -73,7 +73,7 @@ The simulated stack supports additional defects, each covered by the `modelcheck
 ```sh
 .venv/bin/python examples/modelcheck/tests/fake_stack.py --defect gateway_error_status
 GATEWAY_URL=http://127.0.0.1:8400 ENGINE_URL=http://127.0.0.1:8401 GATEWAY_TOKEN=demo-gateway-key \
-  .venv/bin/modelcheck run --profile examples/modelcheck/profiles/stack.toml
+  .venv/bin/modelcheck run --profile examples/modelcheck/profiles/stack.yaml
 ```
 
 ## Kubernetes demonstration

@@ -120,7 +120,7 @@ dependencies = [
 
 `scripts/new-app.sh` writes this dependency automatically, pinned to the commit from which it is
 run. The optional `s3` and `yaml` extras enable S3 publication and YAML profiles; without them,
-the framework depends only on the Python standard library.
+the framework depends only on the Python standard library and PyYAML.
 
 ## Documentation
 
@@ -128,11 +128,13 @@ the framework depends only on the Python standard library.
 |---|---|
 | [Getting started](docs/getting-started.md) | Creating, testing and running a first tool |
 | [Profiles](docs/profiles.md) | Designing and validating the profile that describes the targets |
+| [Extending profiles](docs/extending-profiles.md) | Adding to a profile schema and evolving it safely |
 | [Usage](docs/usage.md) | Commands, flags, run directories, exit codes, comparison and notifications |
 | [Extending](docs/extending.md) | Checks, protocol clients, preflight checks, hooks, notifiers, storage and commands |
 | [Deploying](docs/deploying.md) | Operation as a Kubernetes CronJob and in CI |
 | [Architecture](docs/architecture.md) | Code organisation, data model, concurrency and state |
 | [Design](docs/design.md) | Design principles and their rationale |
+| [Package reference](src/cli_framework/README.md) | The `cli_framework` package: public API, modules and extension points |
 
 ## Repository layout
 

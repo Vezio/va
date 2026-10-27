@@ -1,8 +1,8 @@
 # In-cluster profile: targets are Service DNS names supplied through variables in app-settings
 # or app-secrets; nothing cluster-specific is committed.
-name = "example-service"
+name: example-service
 
-[[targets]]
-name = "service"
-base_url_env = "SERVICE_URL"
-capabilities = ["health", "json"]
+targets:
+  - name: service
+    base_url_env: SERVICE_URL
+    capabilities: [health, json]

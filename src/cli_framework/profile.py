@@ -8,8 +8,8 @@ behaviour. The run is the measurement: a declaration the target does not honour 
 - **Validation reports every problem with its path**, in one pass. An invalid profile is a
   usage error (exit 2), never a test failure.
 
-The file format is a plugin: TOML and JSON are built in, YAML with the `yaml` extra, and
-another (Jsonnet, CUE, HCL) is a loader registered for its suffix.
+The format follows the file's suffix: YAML (`.yaml`, `.yml`) is the default, TOML and JSON are
+also built in, and another (Jsonnet, CUE, HCL) is a loader registered for its suffix.
 
 `Problems` is the collector an app uses to build its own typed profile from the loaded data:
 

@@ -8,7 +8,7 @@ changes.
 | To add | Where | Chosen by |
 |---|---|---|
 | [cases](#cases) | your `cases/` package | `-k`, `--tag` |
-| [a profile schema](profiles.md) | your `profile.py` | `--profile` |
+| [a profile schema](profiles.md), [or extend one](extending-profiles.md) | your `profile.py` | `--profile` |
 | [a client for another protocol](#a-client-for-another-protocol) | your `client.py`, your `State` | the cases |
 | [preflight checks](#preflight-checks) | your `run` command | always run first |
 | [behaviour during a run](#hooks) | a `RunHooks` subclass | your `run` command |
@@ -162,7 +162,7 @@ class PagerDutyNotifier:
 ```
 
 ```sh
-mytool run --profile p.toml --notify pagerduty:env:PAGERDUTY_ROUTING_KEY
+mytool run --profile p.yaml --notify pagerduty:env:PAGERDUTY_ROUTING_KEY
 ```
 
 `post_json` retries network errors, 429 and 5xx within bounds. The `RunReport` has everything a
@@ -198,7 +198,7 @@ failing the run.
 
 ## A profile format
 
-TOML, JSON and YAML are built in. Another is a function from the file's text to a mapping,
+YAML (the default), TOML and JSON are built in. Another is a function from the file's text to a mapping,
 registered for a suffix:
 
 ```python

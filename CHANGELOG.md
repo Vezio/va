@@ -6,6 +6,11 @@ existing tool is marked **changed**.
 
 ## 0.3.0
 
+- **changed**: YAML is the default profile format, in the examples, the scaffold and the
+  documentation; PyYAML is now a core dependency. TOML and JSON profiles still load. The `yaml`
+  extra remains, empty, so existing pins keep resolving.
+- New guides: [Extending profiles](docs/extending-profiles.md), and a
+  [package reference](src/cli_framework/README.md) for `cli_framework`.
 - **changed**: `--notify` on the command line now replaces the notifiers in `<TOOL>_NOTIFY`,
   like every other flag and its variable; it used to add to them.
 - **changed**: run ids carry milliseconds (`2026-10-27T02-08-44-123Z-ab12`), so runs started in
@@ -25,6 +30,8 @@ existing tool is marked **changed**.
 - S3-compatible stores are addressed path-style when `AWS_ENDPOINT_URL_S3` is set.
 - `scripts/install.sh` repairs a virtualenv created without pip, and replaces one on an old Python.
 - The progress line counts what runs: `16 checks (7 cases x 2 targets)`.
+- Piping a tool's output into a reader that stops early (`| head`) no longer prints a
+  traceback per line.
 
 ## 0.2.0
 

@@ -1,18 +1,16 @@
 """The modelcheck profile: an OpenAI-compatible serving stack, declared layer by layer.
 
-    name = "demo-stack"
-    model = "demo-model"             # defaults for every target...
-    max_latency_ms = 2000
-
-    [[targets]]
-    name = "gateway"
-    base_url_env = "GATEWAY_URL"     # a variable's name, never the URL
-    key_env = "GATEWAY_TOKEN"        # a variable's name, never the key
-    capabilities = ["models", "chat", "stream", "auth"]
-    max_latency_ms = 1000            # ...which a target may override
-
-    [targets.expect]
-    unknown_model_status = 404       # what a correct layer answers
+    name: demo-stack
+    model: demo-model              # defaults for every target...
+    max_latency_ms: 800
+    targets:
+      - name: gateway
+        base_url_env: GATEWAY_URL  # a variable's name, never the URL
+        key_env: GATEWAY_TOKEN     # a variable's name, never the key
+        capabilities: [models, chat, stream, auth]
+        max_latency_ms: 1500       # ...which a target may override
+        expect:
+          unknown_model_status: 404  # what a correct layer answers
 
 A profile declares what a **correct** stack does, per layer; the run measures it. When a layer
 differs, the case fails and the difference is the finding. Do not edit a declaration to make a

@@ -24,10 +24,10 @@ generatorOptions:
 configMapGenerator:
   - name: app-profile
     files:
-      - profile.toml
+      - profile.yaml
   - name: app-settings
     literals:
-      - HTTPCHECK_PROFILE=/etc/app/profile.toml
+      - HTTPCHECK_PROFILE=/etc/app/profile.yaml
       - HTTPCHECK_WORK_DIR=/work
       - HTTPCHECK_RUN_BUDGET=300
       - HTTPCHECK_GROUP=demo

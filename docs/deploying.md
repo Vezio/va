@@ -64,10 +64,10 @@ To deploy:
    configMapGenerator:
      - name: app-profile
        files:
-         - profile.toml                          # mounted at /etc/app/profile.toml
+         - profile.yaml                          # mounted at /etc/app/profile.yaml
      - name: app-settings
        literals:
-         - MYTOOL_PROFILE=/etc/app/profile.toml
+         - MYTOOL_PROFILE=/etc/app/profile.yaml
          - MYTOOL_WORK_DIR=/work
          - MYTOOL_RESULTS_URI=s3://<bucket>/<prefix>
          - MYTOOL_RUN_BUDGET=3000

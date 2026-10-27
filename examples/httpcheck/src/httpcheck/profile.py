@@ -1,13 +1,13 @@
 """The httpcheck profile: which HTTP services to check and what a correct one does.
 
-    name = "my-service"
-    [[targets]]
-    name = "gateway"
-    base_url_env = "GATEWAY_URL"     # a variable name, never the URL itself
-    key_env = "GATEWAY_TOKEN"        # optional; read through REDACTOR.secret_from_env
-    capabilities = ["health", "json", "auth"]
-    health_path = "/health"
-    max_latency_ms = 500
+    name: my-service
+    targets:
+      - name: gateway
+        base_url_env: GATEWAY_URL   # a variable name, never the URL itself
+        key_env: GATEWAY_TOKEN      # optional; read through REDACTOR.secret_from_env
+        capabilities: [health, json, auth]
+        health_path: /health
+        max_latency_ms: 500
 
 Declare what a correct service does. A target that differs fails, and the team triages it;
 the profile is not edited to make the run green.

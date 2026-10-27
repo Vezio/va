@@ -87,6 +87,27 @@ class ConsoleFormatter(logging.Formatter):
         return f"{label}: {message}"
 
 
+class PrimaryOutputHandler(logging.StreamHandler):
+    """Primary output on stdout. When the reader goes away (`app show | head -1`), the rest of
+    the output is discarded quietly, as Unix tools do, instead of a traceback per line."""
+
+    def handleError(self, record: logging.LogRecord) -> None:
+        if isinstance(sys.exc_info()[1], BrokenPipeError):
+            self._discard_rest()
+            return
+        super().handleError(record)
+
+    def _discard_rest(self) -> None:
+        # Point the stream's file descriptor at /dev/null, so this write, every later one and
+        # the interpreter's final flush all succeed silently.
+        try:
+            devnull = os.open(os.devnull, os.O_WRONLY)
+            os.dup2(devnull, self.stream.fileno())
+            os.close(devnull)
+        except (AttributeError, OSError, ValueError):  # no real descriptor, e.g. StringIO
+            pass
+
+
 class JsonFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         body = {
@@ -188,7 +209,7 @@ def configure(
     output.handlers.clear()
     output.setLevel(logging.INFO)
     output.propagate = False
-    primary = logging.StreamHandler(stdout or sys.stdout)
+    primary = PrimaryOutputHandler(stdout or sys.stdout)
     primary.setFormatter(logging.Formatter("%(message)s"))
     primary.addFilter(RedactFilter(redactor))
     output.addHandler(primary)

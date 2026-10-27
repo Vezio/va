@@ -36,5 +36,5 @@ fi
 .venv/bin/python -m pip install --quiet --upgrade pip
 .venv/bin/python -m pip install --quiet --editable ".${EXTRAS}" \
   --editable examples/httpcheck --editable examples/modelcheck
-.venv/bin/httpcheck profile validate examples/httpcheck/profiles/example.toml
-.venv/bin/modelcheck profile validate examples/modelcheck/profiles/stack.toml
+.venv/bin/httpcheck profile validate examples/httpcheck/profiles/example.yaml
+.venv/bin/modelcheck profile validate examples/modelcheck/profiles/stack.yaml

@@ -16,7 +16,7 @@ on:
     inputs:
       profile:
         description: profile to run
-        default: examples/httpcheck/profiles/example.toml
+        default: examples/httpcheck/profiles/example.yaml
       select:
         description: only cases whose id contains this (empty runs everything)
         default: ""
@@ -30,7 +30,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
-      HTTPCHECK_PROFILE: ${{ inputs.profile || 'examples/httpcheck/profiles/example.toml' }}
+      HTTPCHECK_PROFILE: ${{ inputs.profile || 'examples/httpcheck/profiles/example.yaml' }}
       HTTPCHECK_RESULTS_URI: ${{ vars.RESULTS_URI }}
       HTTPCHECK_GROUP: ${{ vars.GROUP }}
       AWS_ENDPOINT_URL_S3: ${{ vars.AWS_ENDPOINT_URL_S3 }}

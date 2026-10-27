@@ -17,13 +17,13 @@ from fake_server import FakeService
 from httpcheck.cli import build_app
 
 PROFILE = """
-name = "fake"
-[[targets]]
-name = "svc"
-base_url_env = "SVC_URL"
-key_env = "SVC_TOKEN"
-capabilities = ["health", "json", "auth"]
-max_latency_ms = 300
+name: fake
+targets:
+  - name: svc
+    base_url_env: SVC_URL
+    key_env: SVC_TOKEN
+    capabilities: [health, json, auth]
+    max_latency_ms: 300
 """
 
 
@@ -39,7 +39,7 @@ def service(monkeypatch):
 
 @pytest.fixture
 def profile(tmp_path) -> Path:
-    path = tmp_path / "fake.toml"
+    path = tmp_path / "fake.yaml"
     path.write_text(PROFILE, encoding="utf-8")
     return path
 
@@ -112,8 +112,8 @@ def test_missing_credential_is_preflight(monkeypatch, service, profile, tmp_path
 
 
 def test_invalid_profile_is_usage(tmp_path):
-    bad = tmp_path / "bad.toml"
-    bad.write_text('name = "x"\n[[targets]]\nname = "a"\nbase_url_env = "lower"\n')
+    bad = tmp_path / "bad.yaml"
+    bad.write_text("name: x\ntargets:\n  - name: a\n    base_url_env: lower\n")
     assert build_app().main(["run", "--profile", str(bad), "--run-dir", str(tmp_path / "r")]) == 2
 
 
@@ -274,3 +274,17 @@ def test_job_gives_its_run_a_shorter_budget_than_its_own(service, profile, tmp_p
     )
     assert done.returncode == ExitCode.OK, done.stderr
     assert "--budget 70" in done.stderr  # 100 - 30, logged with the child's command line
+
+
+def test_primary_output_piped_into_a_reader_that_stops_early_is_quiet():
+    """`httpcheck profile show ... | head -1` prints one line and no traceback."""
+    profile = Path(__file__).parent.parent / "profiles" / "example.yaml"
+    done = subprocess.run(
+        f"{Path(sys.executable).parent / 'httpcheck'} profile show {profile} | head -1",
+        shell=True,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert done.stdout.startswith("gateway") and done.stdout.count("\n") == 1
+    assert done.stderr == "", done.stderr

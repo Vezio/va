@@ -15,6 +15,6 @@ complete example, see [`modelcheck`](../modelcheck).
 | `src/httpcheck/profile.py` | a typed profile, validated with every problem reported in a single pass |
 | `src/httpcheck/client.py` | a recording HTTP client: every request and response is retained as evidence |
 | `src/httpcheck/cases/` | checks for health, content type, unknown paths and authentication |
-| `profiles/example.toml` | an example profile with a gateway and a backend |
+| `profiles/example.yaml` | an example profile with a gateway and a backend |
 | `tests/fake_server.py` | a local HTTP server with selectable defects |
 | `tests/test_httpcheck.py` | each check proven to fail against its defect; exit codes; publication, comparison and `job` |

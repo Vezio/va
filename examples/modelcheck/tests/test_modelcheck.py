@@ -13,7 +13,7 @@ from fake_stack import TOKEN, FakeStack
 
 from modelcheck.cli import build_app
 
-PROFILE = Path(__file__).parent.parent / "profiles" / "stack.toml"
+PROFILE = Path(__file__).parent.parent / "profiles" / "stack.yaml"
 
 
 @pytest.fixture
@@ -130,10 +130,10 @@ def test_a_broken_profile_reports_every_problem_and_exits_2(tmp_path):
 
     from modelcheck.profile import load
 
-    broken = tmp_path / "broken.toml"
+    broken = tmp_path / "broken.yaml"
     broken.write_text(
-        'name = "x"\nmodle = "m"\n[[targets]]\nname = "g"\nbase_url_env = "G_URL"\n'
-        'capabilites = ["chat"]\ncapabilities = ["chats"]\n'
+        "name: x\nmodle: m\ntargets:\n  - name: g\n    base_url_env: G_URL\n"
+        "    capabilites: [chat]\n    capabilities: [chats]\n"
     )
     with pytest.raises(ProfileError) as exc:
         load(broken)
@@ -144,3 +144,54 @@ def test_a_broken_profile_reports_every_problem_and_exits_2(tmp_path):
         "targets[0].model: is required (here or at the top of the profile)",
     ]
     assert build_app().main(["profile", "validate", str(broken)]) == ExitCode.USAGE
+
+
+@pytest.mark.parametrize(
+    "line, problem",
+    [
+        # The YAML pitfalls in docs/profiles.md: each is caught with its path.
+        ("model: 1.10", "model: must be str, not float"),
+        ("model: no", "model: must be str, not bool"),
+        ("model: 2024-05-01", "model: must be str, not date"),
+    ],
+)
+def test_yaml_implicit_types_are_reported(tmp_path, line, problem):
+    from cli_framework import ProfileError
+
+    from modelcheck.profile import load
+
+    path = tmp_path / "typed.yaml"
+    path.write_text(
+        f"name: x\n{line}\ntargets:\n  - name: g\n    base_url_env: G_URL\n"
+        "    capabilities: [chat]\n"
+    )
+    with pytest.raises(ProfileError) as exc:
+        load(path)
+    assert problem in exc.value.problems
+
+
+def test_the_same_profile_loads_from_toml_and_json(tmp_path):
+    """YAML is the default; TOML and JSON describe the same profile, with the same digest."""
+    import json
+
+    import yaml
+
+    from modelcheck.profile import load
+
+    data = yaml.safe_load(PROFILE.read_text())
+    as_json = tmp_path / "stack.json"
+    as_json.write_text(json.dumps(data))
+    as_toml = tmp_path / "stack.toml"
+    as_toml.write_text(
+        'name = "demo-stack"\nmodel = "demo-model"\nmax_latency_ms = 800\n'
+        'description = "the gateway and the engine behind it"\n'
+        '[[targets]]\nname = "gateway"\nbase_url_env = "GATEWAY_URL"\n'
+        'key_env = "GATEWAY_TOKEN"\ncapabilities = ["models", "chat", "stream", "auth"]\n'
+        "max_latency_ms = 1500\n"
+        "[targets.expect]\nunknown_model_status = 404\nbad_key_status = 401\n"
+        '[[targets]]\nname = "engine"\nbase_url_env = "ENGINE_URL"\n'
+        'capabilities = ["models", "chat", "stream"]\n'
+        "[targets.expect]\nunknown_model_status = 404\n"
+    )
+    digests = {load(p).digest for p in (PROFILE, as_json, as_toml)}
+    assert len(digests) == 1

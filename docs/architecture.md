@@ -1,7 +1,8 @@
 # Architecture
 
 How the code is laid out, for people changing the framework or reading it to extend it well.
-To extend it, see [Extending](extending.md); for why it is shaped this way, [Design](design.md).
+To extend it, see [Extending](extending.md); for why it is shaped this way, [Design](design.md);
+for the public API module by module, the [package reference](../src/cli_framework/README.md).
 
 ## A run, end to end
 
@@ -60,7 +61,7 @@ field is compatible; renaming or removing one needs a new version.
 | `publish.py` | `deliver` (manifest last), `Archive` (reading published runs back) |
 | `notifiers/` | the `Notifier` protocol, registered in `PLUGINS.notifiers`, spec parsing; built-ins `slack`, `webhook`, `exec`, `file`, `log` |
 | `preflight.py` | `Problem`s with a kind and severity; ready-made checks |
-| `profile.py` | profile formats registered in `PLUGINS.profile_loaders` (TOML, JSON, YAML), the `Problems` collector, digest |
+| `profile.py` | profile formats registered in `PLUGINS.profile_loaders` (YAML by default; TOML and JSON), the `Problems` collector, digest |
 | `settings.py` | `<PREFIX>_<KEY>` environment settings, named in one place |
 | `plugins.py` | `PluginRegistry` (named factories, entry-point discovery) and `PLUGINS`, every extension point in one object |
 | `layout.py` | `RunFile` and `Schema`: every file name and schema id |
@@ -71,8 +72,8 @@ field is compatible; renaming or removing one needs a new version.
 | `kube.py` | read-only kubectl/oc adapter |
 | `exit_codes.py` | `ExitCode` (with its status), `combine` |
 
-Dependencies: the standard library. `boto3` (extra `s3`) and `PyYAML` (extra `yaml`) are
-imported only where used.
+Dependencies: the standard library and PyYAML. `boto3` (extra `s3`) is imported only where
+used.
 
 ### State
 

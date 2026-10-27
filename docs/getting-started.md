@@ -48,21 +48,21 @@ replace the rest.
 
 ## 3. Describe your system in a profile
 
-```toml
-name = "my-service"
+```yaml
+name: my-service
 
-[[targets]]
-name = "gateway"
-base_url_env = "GATEWAY_URL"          # the variable's name, never the URL
-key_env = "GATEWAY_TOKEN"             # the variable's name, never the key
-capabilities = ["health", "json", "auth"]
+targets:
+  - name: gateway
+    base_url_env: GATEWAY_URL         # the variable's name, never the URL
+    key_env: GATEWAY_TOKEN            # the variable's name, never the key
+    capabilities: [health, json, auth]
 ```
 
-Save it as `profiles/my-service.toml`, then:
+Save it as `profiles/my-service.yaml`, then:
 
 ```sh
-.venv/bin/mytool profile validate profiles/my-service.toml   # every problem, with its path
-.venv/bin/mytool profile show profiles/my-service.toml       # what would run, what would skip
+.venv/bin/mytool profile validate profiles/my-service.yaml   # every problem, with its path
+.venv/bin/mytool profile show profiles/my-service.yaml       # what would run, what would skip
 ```
 
 Your profile will grow with your cases: [Profiles](profiles.md) shows how to design one and how
@@ -142,7 +142,7 @@ The new row passes only if the case fails when the server lists no models. That 
 
 ```sh
 GATEWAY_URL=https://gateway.example.com GATEWAY_TOKEN=... \
-  .venv/bin/mytool run --profile profiles/my-service.toml --html
+  .venv/bin/mytool run --profile profiles/my-service.yaml --html
 ```
 
 The run directory lands in `runs/`; its `report.html` shows every case and every check. Exit

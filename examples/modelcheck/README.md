@@ -19,7 +19,7 @@ illustrates the framework's principal capabilities:
 
 | File | Purpose |
 |---|---|
-| `profiles/stack.toml` | the profile: a gateway and an engine |
+| `profiles/stack.yaml` | the profile: a gateway and an engine |
 | `src/modelcheck/profile.py` | the profile schema and its validation |
 | `src/modelcheck/cases/` | checks for models, chat completion (with variants and an exclusive latency check), streaming, errors and authentication |
 | `src/modelcheck/client.py` | a recording HTTP client with Server-Sent Events support |
@@ -30,6 +30,6 @@ illustrates the framework's principal capabilities:
 ## Usage
 
 ```sh
-modelcheck profile show profiles/stack.toml
-GATEWAY_URL=... ENGINE_URL=... GATEWAY_TOKEN=... modelcheck run --profile profiles/stack.toml --html
+modelcheck profile show profiles/stack.yaml
+GATEWAY_URL=... ENGINE_URL=... GATEWAY_TOKEN=... modelcheck run --profile profiles/stack.yaml --html
 ```
