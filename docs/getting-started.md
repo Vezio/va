@@ -109,16 +109,17 @@ __all__ = ["REGISTRY", "api", "health", "models"]
 
 - `ctx.require(name, observed, expected)` records the check, then fails the case unless observed
   equals expected; pass a fourth argument to decide yourself, as `model_count` does.
-  `ctx.check(...)` records without deciding. Recording before deciding is what lets a report show
-  the value that caused a failure, and what a pass actually checked.
-- `needs={"json"}`: a target that does not declare `json` skips this case and says why. It is
-  never silently passed.
-- Never retry inside a case: a retry hides the failure the case exists to catch.
+  `ctx.check(...)` records without deciding. Because observations are recorded first, a report
+  shows the value that caused a failure and what a pass verified.
+- `needs={"json"}`: a target that does not declare `json` skips this case, with the reason
+  recorded, rather than passing it.
+- Do not retry requests inside a case; a retry could turn an intermittent failure into a pass.
 
 ## 5. Prove the case can fail
 
-A case that has never failed has not been tested. The tests run your tool against
-`tests/fake_server.py`, a real local HTTP server; give it the endpoint, and a defect to switch on.
+Each case should be shown to fail against the defect it is meant to detect. The tests run your
+tool against `tests/fake_server.py`, a real local HTTP server; add the endpoint to it, and a
+defect to switch on.
 
 In `tests/fake_server.py`, add a field to `Defects`:
 
@@ -144,7 +145,8 @@ Then, in `tests/test_mytool.py`, add a row to `test_each_case_fails_against_its_
 .venv/bin/python -m pytest -q
 ```
 
-The new row passes only if the case fails when the server lists no models. That is the proof.
+The new row passes only if the case fails when the server lists no models, which confirms that
+the case detects the defect.
 
 ## 6. Run it against your system
 

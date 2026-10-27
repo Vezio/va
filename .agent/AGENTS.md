@@ -1,44 +1,45 @@
-# Working in this repo
+# Working in this repository
 
-`src/va/` is a library of primitives for CLIs that test deployed systems;
-`examples/httpcheck/` is a complete app built on it. Read [../docs/design.md](../docs/design.md) before
-changing a primitive: each rule there exists because breaking it produced a wrong answer.
+`src/va/` is the framework; `examples/httpcheck/` and `examples/modelcheck/` are complete tools
+built on it. Read [docs/architecture.md](../docs/architecture.md), in particular its design
+rules, before changing the framework, and [docs/cases.md](../docs/cases.md) before adding or
+changing a case.
 
-## Hard rules
+## Rules
 
-- **No `print`.** Ruff `T20`. Diagnostics through `log.get_logger`, primary output through
-  `log.emit`.
-- **Redaction filters live on handlers**, never only on a logger: a logger filter misses its
-  child loggers' records.
-- **Secrets enter through `REDACTOR.secret_from_env`** (or a notifier's `env:NAME` target), so
-  they are registered as they are read.
-- **No vendor in the core.** A channel, store or format is a plugin registered by name.
-- **Typed records.** Run files are dataclasses from `model.py`; enums, not strings. Never test
-  an `ExitCode` for truthiness: `OK` is 0.
-- **Exit codes keep their meaning.** Never widen `1` to cover the environment; never let `5`
-  mask a verdict (`exit_codes.combine`).
-- **Never retry a test request.** `retry` is for deliveries only.
-- **`kube.py` stays read-only.** A tool that must write gets its own explicit adapter.
-- **The manifest is written and published last.**
-- **Opt-in stays opt-in.** Concurrency, timeouts and extra outputs are off by default; a case
-  that measures latency, caching or rate limits is `exclusive=True`. Hooks and record writes
-  happen on the runner's thread only.
-- **No hosts, keys or cluster names in committed files.** Profiles name variables; real values
-  live in `*.local.*` files, which Git ignores.
+- Do not use `print` (ruff `T20`). Use `log.get_logger` for diagnostics and `log.emit` for
+  primary output.
+- Attach redaction filters to handlers, not loggers, and read secrets through
+  `REDACTOR.secret_from_env` or a notifier's `env:NAME` target.
+- Keep vendors out of the core: a notification channel, results store or profile format is a
+  plugin registered by name.
+- Use the typed records in `model.py` and the enums for run files. Do not test an `ExitCode`
+  for truthiness, because `ExitCode.OK` is `0`.
+- Keep exit codes distinct: `1` is only for target failures, and `5` never replaces a failing
+  verdict (`exit_codes.combine`).
+- Do not retry requests under test; `retry` is for deliveries only.
+- Keep `kube.py` read-only.
+- Write and publish `MANIFEST.json` last.
+- Keep optional features (concurrency, timeouts, extra outputs) off by default. Mark cases that
+  measure latency, caching or rate limits `exclusive=True`.
+- Do not commit hostnames, keys or cluster names. Profiles name environment variables; real
+  values belong in `*.local.*` files, which Git ignores.
+- Document every module, class, function and method with a Google-style docstring.
 
-## Before you say it works
+## Adding a case
+
+1. Name it `group.behaviour` and keep the identifier stable, since runs are compared by it.
+2. Declare the capabilities it needs in `needs`; do not test for a capability inside the case.
+3. Record observations with `ctx.check` and decide with `ctx.require` or `ctx.fail`.
+4. Read expected values from the target's declarations; do not branch on the target's name.
+5. Add a defect to the example's fake server and a test showing the case fails against it, with
+   the deciding check recorded as failed.
+6. Skip only with `ctx.skip(class, reason)` and a class that describes the reason accurately.
+
+## Before reporting a change as complete
 
 ```sh
 .venv/bin/python -m pytest -q
 .venv/bin/ruff check . && .venv/bin/ruff format --check .
 .venv/bin/mypy src/va examples/httpcheck/src examples/modelcheck/src
 ```
-
-A new case needs its defect in the fake server and a test proving the case fails against it,
-with the deciding check recorded as not-ok.
-
-## Skills
-
-| Skill | Use it when |
-|---|---|
-| [adding-a-case](skills/adding-a-case/SKILL.md) | adding or changing a case, a capability or a command in an app |

@@ -7,6 +7,7 @@ name = "va-framework"
 dynamic = ["version"]
 description = "A framework for building command-line tools that verify deployed systems, record evidence for every result and attribute each failure to the component responsible. Developed for model-serving infrastructure and applicable to any deployed service."
 readme = "README.md"
+license = { text = "Apache-2.0" }
 keywords = [
     "testing",
     "verification",
@@ -29,6 +30,7 @@ classifiers = [
     "Environment :: Console",
     "Intended Audience :: Developers",
     "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: Apache Software License",
     "Operating System :: OS Independent",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: Software Development :: Quality Assurance",
@@ -57,7 +59,6 @@ where = ["src"]
 [project.urls]
 Homepage = "https://github.com/Vezio/va"
 Documentation = "https://github.com/Vezio/va/tree/main/docs"
-Changelog = "https://github.com/Vezio/va/blob/main/CHANGELOG.md"
 Issues = "https://github.com/Vezio/va/issues"
 
 [tool.setuptools.dynamic]

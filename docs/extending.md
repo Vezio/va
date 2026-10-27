@@ -8,7 +8,7 @@ changes.
 | To add | Where | Chosen by |
 |---|---|---|
 | [cases](cases.md) | your `cases/` package and `registry.py` | `-k`, `--tag` |
-| [a profile schema](profiles.md), [or extend one](extending-profiles.md) | your `profile.py` | `--profile` |
+| [a profile schema](profiles.md), [or extend one](profiles.md#extending-a-schema) | your `profile.py` | `--profile` |
 | [a client for another protocol](#a-client-for-another-protocol) | your `client.py`, your `State` | the cases |
 | [a layer kind](#a-layer-kind) | your `LayerKinds` registry | `kind:` on a target |
 | [preflight checks](#preflight-checks) | your `run` command | always run first |
@@ -19,26 +19,6 @@ changes.
 | [a command](#a-command) | `app.add(...)` | the command line |
 | [skip reasons](#skip-reasons) | `App(skip_classes=...)` | `ctx.skip(...)` |
 | [a setting](#settings) | `app.settings` | `MYTOOL_<KEY>` |
-
-## Cases
-
-A case is a function registered with `@REGISTRY.case`. [Writing and registering cases](cases.md)
-explains how registration works and how to add cases, including generated ones; [Getting
-started](getting-started.md#4-write-a-case) walks through a first case. Options of the decorator:
-
-| Option | |
-|---|---|
-| `needs={"stream"}` | capabilities the target must declare; otherwise the case is skipped as `undeclared` |
-| `variants=("a", "b")` | run the case once per variant; the case reads `ctx.variant` |
-| `tags={"smoke"}` | for selection with `--tag` and `--exclude-tag` |
-| `exclusive=True` | never run alongside another case, even with `--workers` (for latency, caching, rate limits) |
-| `timeout_s=30` | give up on this case after 30 seconds, as an `error` |
-
-Inside a case, `ctx` gives you the `target` (from the profile), the `variant`, your shared
-`state`, and the journal: `ctx.check` records an observation, `ctx.require` records then fails
-unless it holds, `ctx.fail` records a failure and stops, `ctx.skip(reason_class, why)` skips.
-`ctx.save(name, text)` keeps a file of evidence for the case. Raising anything else makes the
-case an `error`, with its traceback saved.
 
 ## A client for another protocol
 
@@ -76,7 +56,8 @@ class RecordingDbClient:
         return rows
 ```
 
-Never retry inside a client used by cases: a retried request hides the failure under test.
+Do not retry requests in a client used by cases; a retry could turn an intermittent failure in
+the target into a pass.
 
 ## A layer kind
 

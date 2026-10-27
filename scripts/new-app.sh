@@ -146,8 +146,6 @@ chmod +x "$dest/scripts/lock.sh"
 mkdir -p "$dest/deploy"
 cp -R "$root/deploy/base" "$root/deploy/overlays" "$root/deploy/trigger.sh" \
   "$root/deploy/secrets.env.example" "$dest/deploy/"
-sed -e "s#(\.\./docs/deploying\.md)#($repo_url/blob/main/docs/deploying.md)#" \
-  "$root/deploy/README.md" >"$dest/deploy/README.md"
 rename "$dest/deploy"
 
 # Continuous integration workflow.

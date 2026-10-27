@@ -13,6 +13,7 @@ complete example, see [`modelcheck`](../modelcheck).
 |---|---|
 | `src/httpcheck/cli.py` | the `run` command built on `Session`, the `profile` command, and the framework's built-in commands |
 | `src/httpcheck/profile.py` | a typed profile, validated with every problem reported in a single pass |
+| `src/httpcheck/registry.py` | the case registry |
 | `src/httpcheck/client.py` | a recording HTTP client: every request and response is retained as evidence |
 | `src/httpcheck/cases/` | checks for health, content type, unknown paths and authentication |
 | `profiles/example.yaml` | an example profile with a gateway and a backend |

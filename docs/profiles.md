@@ -16,11 +16,10 @@ checks an OpenAI-compatible serving stack (the one the [local demo](../demo/READ
 | what each target supports (its capabilities) | what today's system happens to do, when that differs from what it should do |
 | what a correct target does: statuses, limits, models served | measurements; those belong in the run's results |
 
-The second column matters. A profile states what a **correct** system does, and the run
-measures the real one against it. When the system differs, a case fails, and that failure is
-the finding: someone fixes the system, or decides the declaration was wrong and changes it, on
-the record. A profile edited to match whatever the system does today reports green by not
-looking.
+A profile states what a correct system does, and the run measures the deployed system against
+it. When the system differs, a case fails and the difference is reported for triage: either the
+system is fixed, or the declaration is found to be wrong and is changed deliberately. Editing a
+profile to match the system's current behaviour would hide the defects the run exists to find.
 
 ## A worked example
 
@@ -253,20 +252,74 @@ with code 3 (your environment), not 1 (the target). See `preflight_checks` in th
 
 ## Profiles per environment
 
-Keep one profile per system you test (`staging.yaml`, `production.yaml`), with the same schema.
-The run's archive group defaults to the profile's `name`, so runs are only ever compared with
+Keep one profile per system under test (`staging.yaml`, `production.yaml`), with the same
+schema. The run's archive group defaults to the profile's `name`, so runs are only compared with
 earlier runs of the same profile.
+
+## Extending a schema
+
+Each addition follows the same pattern: allow the key in the loader, add a dataclass field with a
+default that preserves existing behaviour, validate it with `Problems`, and read it in cases.
+
+**A setting with a profile-wide default and per-target overrides.** Allow the key at both
+levels, read the top-level value once and pass it to each target as its default:
+
+```python
+TOP_KEYS = (..., "request_timeout_s")
+TARGET_KEYS = (..., "request_timeout_s")
+
+default_timeout = p.optional(data, "request_timeout_s", (int, float), 30.0)
+...
+timeout = p.optional(raw, "request_timeout_s", (int, float), default_timeout, at=at)
+```
+
+**A capability.** Add the word to the closed vocabulary (`CAPABILITIES`). Cases that need it
+declare `needs={"tools"}`, and targets that do not declare it skip those cases as `undeclared`.
+
+**Declared behaviour.** Validate lists item by item so that a problem names the exact entry,
+and store lists as tuples so that cases cannot modify a declaration:
+
+```python
+reasons = p.optional(expect_raw, "finish_reasons", list, None, at=f"{at}.expect")
+for i, reason in enumerate(reasons or []):
+    p.one_of(reason, FINISH_REASONS, f"{at}.expect.finish_reasons[{i}]")
+```
+
+**Values that are credentials.** A field that refers to a secret holds the name of an
+environment variable, validated with `p.env_name`, which rejects a pasted value. Read the
+value through `REDACTOR.secret_from_env` and add the variable to the preflight checks, so a
+missing value stops the run with exit code 3:
+
+```yaml
+headers:
+  X-Tenant: GATEWAY_TENANT      # the variable holding the value
+```
+
+**Rules across fields.** Check them after reading the fields involved, and report the problem on
+the field to change, with `p.add(path, message)`.
+
+**Changing a schema in use.** Profiles are often maintained by other teams, so treat the schema
+like an API:
+
+| Change | Approach |
+|---|---|
+| Add a field | Make it optional, with a default that keeps current behaviour. |
+| Rename a field | Accept the old name for one release with a logged warning, then remove it. |
+| Narrow a field | Treat as a breaking change and give profile owners time to adapt. |
+| Remove a field | Reject it with a message naming its replacement rather than ignoring it. |
+
+**Testing.** Test the loader with a valid profile (values, defaults and overrides) and an
+invalid one (the exact problems reported), and test a case that reads the new declaration
+against a defect in the tool's fake service.
 
 ## Checklist
 
-- Every declaration is something a case reads.
-- No URL, key or token in the file; every connection detail is a variable's name.
-- Capabilities and other vocabularies are closed, and checked by the loader.
+- Every declaration is read by a case.
+- No URL, key or token appears in the file; connection details are variable names.
+- Capabilities and other vocabularies are closed and validated by the loader.
 - Unknown keys are reported, so a typo cannot silently drop a declaration.
-- Odd-looking declarations carry a comment saying why they are right.
-- For a stack: every target has a `kind`, every layer in front of another names it in `behind`.
-- `profile validate` and `profile show` pass, and a test feeds the loader a broken profile and
-  checks the problems it reports.
-
-To add settings, capabilities, declarations or credentials to an existing schema, and to change
-it without breaking profiles already in use, see [Extending profiles](extending-profiles.md).
+- Unusual declarations carry a comment explaining why they are correct.
+- For a layered stack, every target has a `kind`, and every layer in front of another names it
+  in `behind`.
+- `profile validate` and `profile show` succeed, and a test checks the problems the loader
+  reports for a broken profile.

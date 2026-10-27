@@ -5,6 +5,14 @@ right people told. A tool made with `scripts/new-app.sh` already has everything 
 repository (`container/`, `deploy/`, `.github/workflows/`); this repository has the same files
 for the example tool.
 
+| Path | Purpose |
+|---|---|
+| `deploy/base/` | the CronJob, which runs `<tool> job` nightly, and the Role used to trigger runs on demand |
+| `deploy/overlays/example/` | an example overlay with placeholders, to copy alongside the system's manifests |
+| `deploy/trigger.sh` | starts a one-off run from the CronJob's pod specification, for example after a rollout |
+| `deploy/secrets.env.example` | the credentials a run may use, to complete outside version control |
+| `container/` | the runner image definition and its hash-locked dependencies |
+
 To see it working before touching a real cluster, run the kind demo: `demo/kind/up.sh` deploys
 `httpcheck` to a local cluster and `demo/kind/test.sh` checks the behaviours below (scheduling,
 no retries, exit codes, publication). See [demo/README.md](../demo/README.md).
@@ -48,7 +56,7 @@ whose default command is `job`.
 `deploy/base` is a CronJob running `mytool job --compare --label trigger=nightly` every night at
 02:00 UTC:
 
-- **no retries** (`backoffLimit: 0`): a retried run hides the failure it found;
+- **no retries** (`backoffLimit: 0`), so a failed run is reported as it occurred;
 - no Kubernetes API access (`automountServiceAccountToken: false`), a non-root user and a
   read-only root filesystem; `/work` and `/tmp` are scratch volumes;
 - the profile is mounted from the `app-profile` ConfigMap at `/etc/app/`; settings come from the

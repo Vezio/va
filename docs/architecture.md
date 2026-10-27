@@ -1,14 +1,15 @@
 # Architecture
 
-How the code is laid out, for people changing the framework or reading it to extend it well.
-To extend it, see [Extending](extending.md); for why it is shaped this way, [Design](design.md);
-for the public API module by module, the [package reference](../src/va/README.md).
+Reference for developers working on the framework itself: how a run proceeds, how the package
+is organised, the design rules the code follows, and how changes are verified. To build a tool
+on the framework, start with [Getting started](getting-started.md); to add plugins, see
+[Extending](extending.md).
 
 ## A run, end to end
 
 ```mermaid
 flowchart TB
-    A["app run --profile"] --> B["load and validate the profile, offline"]
+    A["tool run --profile"] --> B["load and validate the profile"]
     B -->|"invalid"| E2["exit 2: usage"]
     B --> C["preflight: credentials, reachability, destination"]
     C -->|"blocking problem"| E3["exit 3: environment, nothing tested"]
@@ -24,141 +25,188 @@ flowchart TB
     G -->|"passed and delivered"| E0["exit 0"]
 ```
 
-Publication and notification run whichever way verification ended; a failed verdict is never
-replaced by 5.
+Publication and notification run however verification ended, and a failed verdict is never
+replaced by exit code 5.
 
-## The data (`model.py`, `report.py`, `compare.py`)
+In code:
 
-Every file a run writes is a serialised typed record, read back with `from_dict`:
+```
+App.main()                                    cli.py: arguments, logging, exit codes
+  └─ tool's RunCommand.run()                  the tool: load the profile, build the Session
+       ├─ RunOptions.from_args()              commands.py: standard flags to typed options
+       └─ Session.execute()                   session.py
+            ├─ preflight.run(checks)          preflight.py
+            ├─ Runner.run_all(cases, targets) runner.py: each case x target x variant
+            │    └─ case(ctx)                 the tool's checks; evidence.py records each one
+            ├─ RunOutcome, summary.md         model.py, report.py
+            ├─ compare_with_archive()         compare.py, publish.Archive
+            ├─ hooks.on_finish()              hooks.py, outputs/, layers.LayerLocator
+            ├─ publish.deliver()              publish.py, sinks.py
+            └─ notify_all()                   notifiers/
+```
 
-| Type | File | What |
-|---|---|---|
-| `ResultRecord` | `results.jsonl` | one case: `CaseKey` (target, case, variant), `Verdict`, `Check`s, skip class, labels |
-| `RunOutcome` | `outcome.json` | the run: exit code and label, `Counts`, skips by class, `Failure`s, preflight `Problem`s, `Publication`, group, links |
-| `Comparison` | `comparison.json` | `Change`s of a `ChangeKind` against baseline runs |
-| `RunReport` | notifications | what is said about a run: built from the outcome and comparison; every channel renders it |
+`job` runs the tool's `run` command as a child process, then compares, publishes and notifies
+itself, so delivery happens even if the run crashes or overruns its budget.
 
-Enums, not strings: `Verdict`, `ExitCode` (an IntEnum: it is the process status), `Severity`,
-`PublicationStatus`, `ChangeKind`. Schemas are versioned (`va.results/1`, ...): adding a
-field is compatible; renaming or removing one needs a new version.
+## Package layout (`src/va/`)
 
-## The library (`src/va/`)
-
-| Module | Responsibility |
+| Module | Provides |
 |---|---|
-| `cli.py` | `App` (argparse, shared flags, exception to exit-code mapping, SIGTERM as interrupt), the `Command` protocol |
-| `commands.py` | built-ins `publish`, `compare`, `notify`, `job`; `add_run_arguments` and typed `RunOptions` for an app's `run` |
-| `session.py` | one run end to end; `Baseline` and `compare_with_archive` |
-| `runner.py` | `CaseRegistry`, `Case`, `Selector` (patterns and tags), `Context`, `Runner` (serial by default; opt-in workers and case timeouts) |
-| `hooks.py` | `RunHooks` lifecycle observers, `HookChain`, `ProgressLog` |
+| `cli.py` | `App` (argument parsing, shared logging flags, exception to exit code mapping, SIGTERM handled as an interrupt), the `Command` protocol, `run_app` |
+| `commands.py` | the built-in `publish`, `compare`, `notify` and `job` commands; `add_run_arguments` and `RunOptions` for a tool's `run` command |
+| `settings.py` | `Settings` and `Key`: every `<TOOL>_<KEY>` environment setting, named once |
+| `session.py` | `Session` (one run from preflight to exit code), `Baseline`, `compare_with_archive` |
+| `runner.py` | `CaseRegistry`, `Case`, `Selector`, `Context`, `Runner` (serial by default; opt-in workers and timeouts), the `Target` protocol |
+| `evidence.py` | the check journal: `check`, `require`, `fail` |
+| `layers.py` | `LayerKinds`, `LayerAdapter`, `LayerLocator`: targets as the layers of one stack |
+| `preflight.py` | `Problem`s with a kind and severity, and the standard checks |
+| `hooks.py` | `RunHooks`, `HookChain` (isolates hook failures), `ProgressLog` |
 | `outputs/` | opt-in hooks: `HtmlReport`, `JUnitReport`, `MetricsFile` |
-| `evidence.py` | the check journal: record, then decide |
-| `model.py` | the typed records above, `SkipClasses` |
-| `report.py` | `RunReport` and the Markdown summary |
-| `compare.py` | the transitions, windows and flaky cases |
-| `rundir.py` | file names, redacting writers, typed readers, the manifest |
-| `sinks.py` | the `Sink` protocol, `file://` and `s3://`, registered in `PLUGINS.sinks` |
-| `publish.py` | `deliver` (manifest last), `Archive` (reading published runs back) |
-| `notifiers/` | the `Notifier` protocol, registered in `PLUGINS.notifiers`, spec parsing; built-ins `slack`, `webhook`, `exec`, `file`, `log` |
-| `preflight.py` | `Problem`s with a kind and severity; ready-made checks |
-| `profile.py` | profile formats registered in `PLUGINS.profile_loaders` (YAML by default; TOML and JSON), the `Problems` collector, digest |
-| `layers.py` | targets as the layers of one stack: a tool's `LayerKinds`, adapters per kind, ordering, and `LayerLocator`, which places each failure at the layer it starts at |
-| `settings.py` | `<PREFIX>_<KEY>` environment settings, named in one place |
-| `plugins.py` | `PluginRegistry` (named factories, entry-point discovery) and `PLUGINS`, every extension point in one object |
-| `layout.py` | `RunFile` and `Schema`: every file name and schema id |
+| `profile.py` | `load` (format by file suffix), the `Problems` collector, `digest`, `resolve_env` |
+| `model.py` | the typed run records (`ResultRecord`, `RunOutcome`, `Verdict`, `Check`, `CaseKey`, `Counts`, `SkipClasses`, ...) |
+| `rundir.py` | `RunDir`: redacting writers, typed readers, the manifest |
+| `layout.py` | `RunFile` and `Schema`: every file name and schema identifier |
+| `report.py` | `RunReport`: what is said about a run, rendered by every channel |
+| `compare.py` | `compare`, `Comparison`, `ChangeKind` |
+| `exit_codes.py` | `ExitCode` (each with a label, headline and meaning), `combine` |
+| `sinks.py` | the `Sink` protocol, `file://` and `s3://` |
+| `publish.py` | `deliver` (manifest last, never raises), `Archive` (reads published runs) |
+| `notifiers/` | the `Notifier` protocol, spec parsing, and the `slack`, `webhook`, `exec`, `file` and `log` notifiers |
+| `retry.py` | bounded retries, used for deliveries only |
+| `log.py` | `configure`, `get_logger`, `emit`; redaction on every handler |
+| `redact.py` | `Redactor` and the process-wide `REDACTOR` |
+| `plugins.py` | `PluginRegistry` and `PLUGINS` (`notifiers`, `sinks`, `profile_loaders`), with entry-point discovery |
 | `defaults.py` | `Defaults` and `RetryPolicy`: every tunable, immutable |
-| `redact.py` | `Redactor`, and the one process-wide instance `REDACTOR` |
-| `log.py` | two streams, handler-level redaction, `LogSetup` |
-| `retry.py` | bounded retries, for deliveries only |
-| `kube.py` | read-only kubectl/oc adapter |
-| `exit_codes.py` | `ExitCode` (with its status), `combine` |
+| `kube.py` | `KubeContext`: a read-only `kubectl`/`oc` adapter |
 
-Dependencies: the standard library and PyYAML. `boto3` (extra `s3`) is imported only where
-used.
+The names exported from `va` (`from va import ...`) are the public API. Other names may change
+between minor versions before 1.0.
+
+The package depends on the standard library and PyYAML. `boto3`, from the `s3` extra, is
+imported only when publishing to S3.
+
+### Run files
+
+Every file a run writes is a serialised dataclass that reads back with `from_dict`:
+
+| Type | File | Content |
+|---|---|---|
+| `ResultRecord` | `results.jsonl` | one case on one target: `CaseKey`, `Verdict`, `Check`s, skip class, labels |
+| `RunOutcome` | `outcome.json` | the run: exit code, `Counts`, skips by class, failures, preflight problems, publication, group, links |
+| `Comparison` | `comparison.json` | changes against baseline runs |
+| (layers) | `layers.json` | the declared stack and where each failure starts |
+
+Schemas are versioned (`va.results/1`, ...). Readers ignore unknown fields, so adding a field is
+compatible; renaming or removing one requires a new version, because published runs outlive
+the code that wrote them.
 
 ### State
 
-Module-level state is three objects, all deliberate:
+Module-level state is limited to three objects:
 
-| Object | What | Why it is process-wide |
+| Object | Content | Reason |
 |---|---|---|
-| `REDACTOR` (`redact.py`) | the secrets to scrub | secrets and logging are process-wide; every API that redacts also accepts its own `Redactor` |
-| `PLUGINS` (`plugins.py`) | `.notifiers`, `.sinks`, `.profile_loaders` | that is what makes a plugin one registration; a name cannot be registered twice unless `replace=True` |
-| `DEFAULTS` (`defaults.py`) | timeouts, retry policy, truncation limits | immutable; build another with `dataclasses.replace` |
+| `REDACTOR` | registered secrets | secrets and logging are process-wide; APIs that redact also accept their own `Redactor` |
+| `PLUGINS` | notifier, sink and profile-format registries | registration by name is what makes a plugin a single class |
+| `DEFAULTS` | timeouts, retry policy, truncation limits | immutable; derive another with `dataclasses.replace` |
 
-Names live on types, not in loose constants: run file names and schema ids are the `RunFile` and
-`Schema` enums (`layout.py`); each `ExitCode` carries its label, headline and meaning; each
-`ChangeKind` its heading; the default skip vocabulary is `SkipClasses.default()`. Logging
-configuration is a `LogSetup` that the `App` holds.
+Configuration is held by objects the tool owns (`App`, `Settings`, `LogSetup`). File names,
+schema identifiers, exit code descriptions and the default skip classes are defined on enums
+and types rather than as loose constants.
 
-## Concurrency (opt-in)
+### Concurrency
 
-With `workers > 1`, worker threads only execute cases and hand back records; the runner's own
-thread writes `results.jsonl` and calls every hook, so hooks never need locks. `RunDir` writes
-are serialised, because cases share files such as `exchanges.jsonl`. Workers are daemon
-threads, so a hung case never keeps the process alive, and the budget stops new cases in every
-worker. Cases marked `exclusive` run alone after the concurrent ones. `run_all` returns
-records in plan order; `results.jsonl` is in completion order, which nothing depends on
-because readers key records by `CaseKey`.
+With `workers > 1`, worker threads only execute cases; the runner's own thread writes
+`results.jsonl` and calls every hook, so hooks need no locking. `RunDir` writes are serialised.
+Workers are daemon threads, so a hung case cannot keep the process alive. Cases marked
+`exclusive` run alone after the concurrent ones. A timed-out case cannot be stopped, because
+Python cannot kill a thread: it is recorded as an `error`, marked abandoned so later evidence
+writes are discarded, and left to finish in the background.
 
-A timed-out case cannot be stopped (Python has no way to kill a thread): it is recorded as an
-`error`, marked abandoned so its later evidence writes are dropped, and left to finish in the
-background.
+## Design rules
 
-## Extension points
+These rules are relied on throughout the code and by tools built on it. Changes that break
+one need a strong reason.
 
-Each is additive: no VA change, no fork.
+1. **Exit codes attribute failures.** `1` means the target failed cases; it is never used for
+   an environment problem (`3`). Delivery failure (`5`) never replaces a failing verdict
+   (`exit_codes.combine`). `ExitCode.OK` is `0`, so never test an exit code for truthiness.
+2. **Preflight runs before any case.** Credentials, reachability and the results destination
+   are checked first, and every problem is reported together, so a broken environment costs
+   seconds rather than a full run.
+3. **Profiles declare correct behaviour.** The run measures the target against the profile. A
+   case whose `needs` are not declared is skipped as `undeclared`, never passed. Committed
+   profiles name environment variables, never addresses or credentials. An invalid profile
+   reports every problem in one pass and exits 2. A digest of the profile is recorded with
+   each run.
+4. **Cases are independent of targets.** A case receives a target and does not branch on its
+   identity, so one case yields one comparable result per target.
+5. **Evidence is recorded before the verdict.** `check`, `require` and `fail` record the
+   observed and expected values on passes and failures alike. Clients record each exchange.
+6. **Skips are classified.** `undeclared`, `not_implemented`, `requires_instrumentation`,
+   `excluded_by_policy` and `throttled` are kept distinct, so a report never shows a gap as
+   coverage. Tools can add classes.
+7. **Requests under test are not retried; deliveries are.** A retry could hide the failure a
+   case is checking. Uploads and notifications are retried within bounds by `retry.call`.
+8. **Runs are written locally, then published, manifest last.** A run is complete in storage
+   exactly when `MANIFEST.json` is present, and readers list only complete runs. Publication
+   happens however the run ended.
+9. **Logging is redacted at the handlers.** Diagnostics go to stderr; primary output goes to
+   stdout through `emit`. Redaction filters sit on handlers, because a logger's filter does
+   not see its child loggers' records. Run files and notifications are redacted as they are
+   written. Secrets are registered as they are read (`REDACTOR.secret_from_env`, or a
+   notifier's `env:NAME` target). `print` is not used (ruff `T20`).
+10. **The framework never modifies the system it measures.** `kube.py` allows only read verbs;
+    a tool that must write uses a separate, explicit adapter.
+11. **The unattended parent owns delivery.** `job` runs `run` as a child with a budget shorter
+    than its own, and strips its delivery settings from the child's environment, so each run
+    is published and notified exactly once, even if the child crashes.
+12. **Comparisons distinguish four transitions:** regression, recovery, lost evidence (a
+    verdict became a skip) and new evidence. A run with no cases is never treated as a pass.
+    Only runs labelled as baselines (for example `trigger=nightly`) are compared against.
+13. **Commands are thin.** They parse arguments and call library functions, so the library
+    works without the CLI. argparse is used because `parse_known_args` forwards unknown
+    arguments cleanly and output stays within the logging system.
+14. **Every case is proven to fail.** Tests run against a real local server with injectable
+    defects, not mocks, and each case is shown to fail against its defect with the deciding
+    check recorded as failed.
+15. **Clients use the raw protocol.** An SDK can normalise away malformed bodies, statuses and
+    headers that a check needs to see. Where SDK compatibility is itself under test, pin the
+    SDK version exactly.
+16. **Vendors are plugins.** Notification channels, results stores and profile formats are
+    registered by name and chosen by configuration; the core has no vendor-specific code.
+17. **Optional features stay off by default.** Concurrency, timeouts and extra outputs change
+    what a run measures or costs, so they are enabled explicitly.
+18. **Images are reproducible.** Dependencies are installed from a hash-checked lock file, then
+    the tool with `--no-deps` and `pip check`.
 
-| To add | Do | Discovered by name from |
-|---|---|---|
-| a **notification channel** (Teams, Discord, email, PagerDuty, a ticket system) | a class with `name` and `send(report)`, built from a target string; `PLUGINS.notifiers.register("teams", TeamsNotifier)` | `--notify teams:env:TEAMS_URL`, `<PREFIX>_NOTIFY`; entry point group `va.notifiers` |
-| a **results store** (GCS, Azure Blob, an upload API) | implement `Sink`; `PLUGINS.sinks.register("gs", GcsSink)` | the destination URI's scheme; group `va.sinks` |
-| a **profile format** (Jsonnet, CUE, HCL) | a `text -> mapping` function; `PLUGINS.profile_loaders.register("jsonnet", load)` | the file suffix; group `va.profile_loaders` |
-| **live reporting** (metrics, a database, a live table, an extra report file) | subclass `RunHooks`; add it to `Session(hooks=[*options.hooks(), yours])` | code |
-| a **layer kind** (a gateway, a router, a cache, a load balancer) | `KINDS.register("cache", depth=1, adapter=...)` on your tool's `LayerKinds`; add `LayerLocator` to the hooks | `kind:` on a profile target |
-| a **case** | `@REGISTRY.case("group.what", needs=..., variants=..., tags=...)` | `-k`, `--tag`, `--exclude-tag` |
-| a **skip class** | `App(skip_classes=SkipClasses.default().extend(SkipClass(...)))` | `ctx.skip(name, reason)` |
-| a **preflight check** | a callable returning `Problem`s | `Session(checks=...)` |
-| a **command** | a class with `name`, `help`, `passthrough`, `add_arguments(parser, app)`, `run(args, app)`; `app.add(...)` | the CLI |
-| a **setting** | `app.settings.get("MY_KEY")` reads `<PREFIX>_MY_KEY` | the environment |
-| a **different test engine** (pytest, a load generator, an external harness) | keep `Session`'s shell and write `ResultRecord`s from your engine (`RunDir.add_result`), or replace `Session._verify` in a subclass | code |
+## Development
 
-A notifier spec is `<kind>:<target>`; `env:NAME` reads the target from a variable and
-registers it as a secret. Channels are independent: one failing does not stop the others, and
-a failed delivery turns an otherwise passing run into exit 5.
+Set up a virtual environment with the framework, both examples and the development tools:
 
-## A tool (`examples/modelcheck/`, `examples/httpcheck/`)
+```sh
+scripts/install.sh --dev
+```
 
-Both examples have the same shape, which `scripts/new-app.sh` copies:
-
-| Module | Responsibility |
-|---|---|
-| `profile.py` | the tool's typed profile, validated with `Problems` ([Profiles](profiles.md)) |
-| `layers.py` | modelcheck's kinds of layer (`proxy`, `router`, `engine`) and their adapters |
-| `client.py` | a recording client for the protocol under test (here HTTP) |
-| `registry.py` | the tool's `CaseRegistry`, `REGISTRY` |
-| `cases/` | one module per group of cases, each registering into `REGISTRY`; `cases/__init__.py` imports every module and re-exports `REGISTRY` ([Writing and registering cases](cases.md)) |
-| `cli.py` | the tool's `run` (builds a `Session` from `RunOptions`) and `profile` commands, plus the built-ins |
-| `tests/fake_*.py` | a real local server with switchable defects: every case is proven to fail against one |
-
-## Testing
-
-What CI runs on every change, after `scripts/install.sh --dev`:
+CI runs the following on every change:
 
 ```sh
 .venv/bin/ruff check . && .venv/bin/ruff format --check .
 .venv/bin/mypy src/va examples/httpcheck/src examples/modelcheck/src
 .venv/bin/python -m pytest -q        # tests/ and both examples' tests
-demo/local/run.sh                    # the local demo, end to end
+demo/local/run.sh                    # the local demonstration, end to end
 ```
 
-CI also renders the Kubernetes manifests, runs shellcheck on every script and builds the image;
-`kind-demo.yaml` runs the kind demo and its checks.
+CI also renders the Kubernetes manifests, runs shellcheck on every script and builds the
+image; `kind-demo.yaml` runs the Kubernetes demonstration.
 
-### Code documentation
+Every module, class, function and method has a Google-style docstring (PEP 257, with `Args:`,
+`Returns:`, `Raises:` and `Attributes:` sections where they apply); constructor arguments are
+documented in the class docstring. Ruff's pydocstyle rules enforce this for public names.
 
-Every module, class, function and method has a docstring in the Google style (PEP 257, with
-`Args:`, `Returns:`, `Raises:` and `Attributes:` sections where they apply). Constructor
-arguments are documented in the class docstring. Ruff's pydocstyle rules (`D`, Google
-convention) enforce this for public names in CI; private helpers follow the same convention.
-Tools created with `scripts/new-app.sh` inherit the same lint configuration.
+A change to a case or a capability needs a defect in the example's fake server and a test that
+shows the case failing against it. A change to the framework's behaviour needs a test in
+`tests/`.
+
+Versions follow `va.__version__`. Until 1.0, a minor version may change behaviour; tools pin a
+commit and should review the commit history before moving the pin.
