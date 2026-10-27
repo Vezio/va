@@ -3,31 +3,60 @@
 [![Tests](https://github.com/Vezio/cli-framework/actions/workflows/offline-tests.yaml/badge.svg)](https://github.com/Vezio/cli-framework/actions/workflows/offline-tests.yaml)
 [![Python 3.11 | 3.12](https://img.shields.io/badge/python-3.11%20%7C%203.12-3776AB?logo=python&logoColor=white)](pyproject.toml)
 
-**A Python framework for building command-line tools that test deployed systems.** It was built
-for model-serving stacks (engines, routers and gateways, and the rollouts that change them) and
-fits any service you reach over the network. You write the checks; the framework provides
-everything a test tool needs around them: profiles, evidence, exit codes, reports, publishing,
-comparison between runs, notifications and unattended runs.
+cli-framework is a Python framework for building command-line tools that verify deployed
+systems. It was designed for model-serving infrastructure (inference engines, routers and
+gateways, and the rollouts that change them) and applies to any service reachable over the
+network.
+
+A tool built on cli-framework defines its checks; the framework supplies the capabilities every
+verification tool needs around them: declarative profiles, recorded evidence, exit codes that
+attribute failures, reports, archival and comparison of runs, notifications, and unattended
+operation on Kubernetes and in CI.
 
 Built by Tyler Vezio Rimaldi ([@Vezio](https://github.com/Vezio)) and Alberto Perdomo
 ([@albertoperdomo2](https://github.com/albertoperdomo2)).
 
-## See it work
+## Contents
+
+- [Capabilities](#capabilities)
+- [Quick start](#quick-start)
+- [Building a tool](#building-a-tool)
+- [Installation](#installation)
+- [Documentation](#documentation)
+- [Repository layout](#repository-layout)
+- [Versioning](#versioning)
+
+## Capabilities
+
+| Capability | Description |
+|---|---|
+| **Declarative profiles** | Each target, how to reach it, what it supports and how a correct one behaves, in a validated file; every problem is reported in a single pass. See [Profiles](docs/profiles.md). |
+| **Recorded evidence** | Every check records the observed and expected values before a verdict is reached, so each failure carries the value that caused it. |
+| **Failure attribution** | Distinct exit codes separate failing checks, an unprepared environment, a tool defect and failed delivery, so automation can act on each without parsing logs. See [Exit codes](docs/usage.md#exit-codes). |
+| **Credential protection** | Registered credentials and bearer tokens are redacted from logs, run files, reports and notifications. |
+| **Run archival and comparison** | Every run is a self-contained directory, published to a file system or S3-compatible storage, and compared with earlier runs to identify regressions, recoveries and unstable checks. |
+| **Unattended operation** | A `job` command that publishes and notifies even when a run fails abnormally, a Kubernetes CronJob, and CI workflows. |
+| **Extensibility** | Notification channels (Slack, webhooks, commands, or custom), storage backends and profile formats are plugins, selected by configuration and implemented as a single class. |
+
+## Quick start
+
+Requirements: Python 3.11 or later. No external service, network access or credentials are
+needed.
 
 ```sh
 git clone https://github.com/Vezio/cli-framework && cd cli-framework
 demo/local/run.sh
 ```
 
-You need Python 3.11 or newer, and nothing else: no service, no network, no account. The demo
-starts a small OpenAI-compatible serving stack on your machine (an engine, and a gateway in
-front of it) and checks it with `modelcheck`, an example tool built on the framework. It runs
-twice:
+The demonstration starts a local OpenAI-compatible serving stack, consisting of an engine and a
+gateway in front of it, and verifies it with `modelcheck`, an example tool built on the
+framework. It performs two runs:
 
-1. **Last night**: the stack is healthy; the run passes and is saved as the baseline.
-2. **Today**: the gateway has a bug (its streams no longer end with `data: [DONE]`). The same
-   cases now fail on the gateway, but not on the engine behind it, which points at the layer
-   with the bug, and the comparison with last night calls it a regression:
+1. **Baseline.** The stack is healthy. All checks pass and the run is archived as the baseline.
+2. **Regression.** A defect is introduced in the gateway: its responses no longer terminate
+   streams with `data: [DONE]`. The affected check fails on the gateway and passes on the engine
+   behind it, isolating the defect to the gateway, and the comparison with the baseline reports
+   it as a regression.
 
 ```
 === What the second run found
@@ -46,32 +75,24 @@ twice:
   regression: gateway stream.well_formed: pass -> fail
 ```
 
-The engine's `skip` is deliberate: its profile does not declare authentication, so the run
-says so instead of reporting a pass. Each run also leaves an HTML report and a published copy
-in `demo/local/out/`. A second demo deploys a tool as a Kubernetes CronJob on a local kind
-cluster: [demo/README.md](demo/README.md).
+The engine's authentication check is skipped by design: its profile does not declare
+authentication, and the skip records that reason rather than reporting a pass. Each run also
+produces an HTML report and an archived copy in `demo/local/out/`.
 
-## What you get
+A second demonstration deploys a tool as a Kubernetes CronJob on a local kind cluster and
+verifies its operational behaviour. See [demo/README.md](demo/README.md).
 
-| | |
-|---|---|
-| **Profiles** | describe each target and what a correct one does, with every problem reported at once ([Profiles](docs/profiles.md)) |
-| **Evidence for every verdict** | each case records what it observed before it decides: a failure shows the value that caused it |
-| **Exit codes that assign blame** | failing cases, a broken environment, a broken tool and failed delivery each exit differently, so CI can tell them apart ([exit codes](docs/usage.md#exit-codes)) |
-| **Secrets kept out** | registered credentials and bearer tokens are scrubbed from logs, run files, reports and notifications |
-| **Runs you can compare** | every run is a directory, published to disk or S3; regressions, recoveries and flaky cases against earlier runs |
-| **Unattended runs** | a `job` command that publishes and notifies even when the run crashes; a Kubernetes CronJob; CI workflows |
-| **Plugins** | notifications (Slack, any webhook, any command, or your own), storage and profile formats are chosen by name, and extended with one class |
-
-## Build your own tool
+## Building a tool
 
 ```sh
 scripts/new-app.sh mytool ../mytool
 ```
 
-This creates a working tool to adapt: cases, a profile schema, tests against a fake server,
-a container image definition, Kubernetes manifests and a CI workflow. A case records what it
-saw, then decides:
+This generates a complete, independent project: checks, a profile schema, tests against a
+simulated service, a container image definition with locked dependencies, Kubernetes manifests
+and a CI workflow.
+
+Each check records its observations, then reaches a verdict:
 
 ```python
 @REGISTRY.case("health.status", needs={"health"})
@@ -82,14 +103,14 @@ def health_status(ctx: Context) -> None:
     ctx.require("http_status", exchange.status, 200)
 ```
 
-You write the `run` command (a few lines that build a `Session`, as in the examples); `job`,
-`publish`, `compare` and `notify` come with the framework. [Getting started](docs/getting-started.md)
-walks through it.
+A tool implements its `run` command, typically a few lines that configure a `Session`; the
+`job`, `publish`, `compare` and `notify` commands are provided by the framework. See
+[Getting started](docs/getting-started.md) for a complete walkthrough.
 
-## Use it in your project
+## Installation
 
-The framework is not on PyPI. Depend on a specific commit, so every install and image build gets
-the same code:
+cli-framework is distributed from source and is not published to PyPI. Depend on a specific
+commit so that every installation and image build uses identical code:
 
 ```toml
 dependencies = [
@@ -97,40 +118,43 @@ dependencies = [
 ]
 ```
 
-`scripts/new-app.sh` writes this for you, pinned to the commit you run it from. The `s3` and
-`yaml` extras add publishing to S3 and YAML profiles; without them the framework uses only the
-Python standard library.
+`scripts/new-app.sh` writes this dependency automatically, pinned to the commit from which it is
+run. The optional `s3` and `yaml` extras enable S3 publication and YAML profiles; without them,
+the framework depends only on the Python standard library.
 
 ## Documentation
 
-| | |
+| Guide | Contents |
 |---|---|
-| [Getting started](docs/getting-started.md) | your first tool, step by step |
-| [Profiles](docs/profiles.md) | design the profile that describes your targets |
-| [Usage](docs/usage.md) | every command and flag, the run directory, exit codes, comparison, notifications |
-| [Extending](docs/extending.md) | your own cases, clients, checks, notifiers, storage and commands |
-| [Deploying](docs/deploying.md) | run your tool as a Kubernetes CronJob or in CI |
-| [Architecture](docs/architecture.md) | how the code is laid out |
-| [Design](docs/design.md) | why it works the way it does |
+| [Getting started](docs/getting-started.md) | Creating, testing and running a first tool |
+| [Profiles](docs/profiles.md) | Designing and validating the profile that describes the targets |
+| [Usage](docs/usage.md) | Commands, flags, run directories, exit codes, comparison and notifications |
+| [Extending](docs/extending.md) | Checks, protocol clients, preflight checks, hooks, notifiers, storage and commands |
+| [Deploying](docs/deploying.md) | Operation as a Kubernetes CronJob and in CI |
+| [Architecture](docs/architecture.md) | Code organisation, data model, concurrency and state |
+| [Design](docs/design.md) | Design principles and their rationale |
 
-## Repository
+## Repository layout
 
 ```
 src/cli_framework/     the framework
-examples/modelcheck/   a tool for OpenAI-compatible serving stacks: the demo's tool
-examples/httpcheck/    a minimal tool for any HTTP service: the template new-app.sh copies
-demo/                  the local demo, and the Kubernetes demo on kind
-docs/                  the guides above
-tests/                 the framework's own tests
-deploy/                a Kubernetes CronJob, RBAC and an example overlay
-container/             the runner image and its hash-pinned dependencies
-scripts/               install, new-app, lock
-.github/workflows/     tests on every change, the kind demo, a scheduled live run
+examples/modelcheck/   example tool for OpenAI-compatible serving stacks, used by the demonstration
+examples/httpcheck/    minimal example tool for HTTP services, used as the template for new tools
+demo/                  local and Kubernetes (kind) demonstrations
+docs/                  guides
+tests/                 the framework's test suite
+deploy/                Kubernetes CronJob, RBAC and example overlay
+container/             runner image definition and hash-pinned dependencies
+scripts/               installation, project generation and dependency locking
+.github/workflows/     continuous integration, the kind demonstration and a scheduled live run
 ```
 
-## Status
+## Versioning
 
-Version 0.3. The API may still change before 1.0; pin a commit, and read
-[CHANGELOG.md](CHANGELOG.md) before moving to a newer one. Developing the framework itself:
-`scripts/install.sh --dev`, then `.venv/bin/python -m pytest -q`; the checks CI runs are in
-[architecture.md](docs/architecture.md#testing).
+The current version is 0.3. Until 1.0, minor versions may change behaviour; such changes are
+identified in [CHANGELOG.md](CHANGELOG.md), which should be reviewed before updating a pinned
+commit.
+
+To develop the framework itself, run `scripts/install.sh --dev`, then
+`.venv/bin/python -m pytest -q`. The complete set of checks run in CI is listed in
+[Architecture](docs/architecture.md#testing).

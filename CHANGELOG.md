@@ -1,6 +1,6 @@
 # Changelog
 
-Pin a commit (see the [README](README.md#use-it-in-your-project)) and read this before moving to
+Pin a commit (see the [README](README.md#installation)) and read this before moving to
 a newer one. Until 1.0, a minor version may change behaviour; each change that can affect an
 existing tool is marked **changed**.
 

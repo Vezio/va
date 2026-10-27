@@ -1,28 +1,33 @@
 # modelcheck
 
-An example tool built on cli-framework: it checks an OpenAI-compatible serving stack, layer by
-layer. It is the tool the [local demo](../../demo/README.md) runs, and a worked example of the
-framework's main ideas:
+`modelcheck` is an example tool built on cli-framework. It verifies an OpenAI-compatible serving
+stack layer by layer, and is the tool used by the [local demonstration](../../demo/README.md). It
+illustrates the framework's principal capabilities:
 
-- **one case, many layers**: the same cases run against the gateway and the engine behind it,
-  so a failure on one column and a pass on the other points at the layer;
-- **a profile that declares intent**: what a correct layer does (statuses, latency budgets, the
-  model it serves), with defaults and per-layer overrides, validated with every problem reported
-  at once ([Profiles](../../docs/profiles.md) walks through it);
-- **capabilities**: the authentication case runs where a layer declares `auth`, and is skipped,
-  with the reason, where it does not;
-- **cases that prove themselves**: each one fails against a defect of the fake stack in
-  `tests/`, on the layer that has the defect, and only there.
+- **Layer-by-layer verification.** The same checks run against the gateway and the engine behind
+  it. A check that fails on one layer and passes on the other isolates a defect to that layer.
+- **Declarative profiles.** The profile declares the behaviour expected of each layer (response
+  statuses, latency budgets, the model served), with shared defaults and per-layer overrides,
+  and is validated with every problem reported in a single pass. See
+  [Profiles](../../docs/profiles.md).
+- **Capabilities.** The authentication check runs on layers that declare `auth`, and is skipped,
+  with the reason recorded, on layers that do not.
+- **Verified checks.** Each check is proven, in the test suite, to fail against a corresponding
+  defect of the simulated stack, on the affected layer only.
 
-| File | What |
+## Components
+
+| File | Purpose |
 |---|---|
 | `profiles/stack.toml` | the profile: a gateway and an engine |
-| `src/modelcheck/profile.py` | the profile's schema and validation |
-| `src/modelcheck/cases/` | models, chat (with variants, and an exclusive latency case), streaming, errors, auth |
-| `src/modelcheck/client.py` | a recording HTTP client, with Server-Sent Events parsing |
-| `src/modelcheck/cli.py` | `run` (preflight, then a `Session`) and `profile`; the rest is built in |
-| `tests/fake_stack.py` | an engine and a gateway with switchable defects; also runs as a service |
-| `tests/test_modelcheck.py` | every defect caught on the right layer; comparison; workers; preflight |
+| `src/modelcheck/profile.py` | the profile schema and its validation |
+| `src/modelcheck/cases/` | checks for models, chat completion (with variants and an exclusive latency check), streaming, errors and authentication |
+| `src/modelcheck/client.py` | a recording HTTP client with Server-Sent Events support |
+| `src/modelcheck/cli.py` | the `run` command (preflight checks, then a `Session`) and the `profile` command; other commands are provided by the framework |
+| `tests/fake_stack.py` | a simulated engine and gateway with selectable defects; also runs as a standalone service |
+| `tests/test_modelcheck.py` | detection of each defect on the correct layer, comparison, concurrency and preflight checks |
+
+## Usage
 
 ```sh
 modelcheck profile show profiles/stack.toml

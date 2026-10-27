@@ -1,41 +1,55 @@
-# Demos
+# Demonstrations
 
-Two ways to see cli-framework work: on your laptop in a few seconds, and on a throwaway
-Kubernetes cluster that runs a tool the way production would.
+Two demonstrations show cli-framework in operation: a local demonstration that runs in a few
+seconds, and a Kubernetes demonstration that deploys a tool to a disposable cluster and verifies
+its operational behaviour.
 
-## Local: find a bug, and the layer it is in
+| Demonstration | Tool | Requirements | Duration |
+|---|---|---|---|
+| [Local](#local-demonstration) | `modelcheck` | Python 3.11 or later | a few seconds |
+| [Kubernetes](#kubernetes-demonstration) | `httpcheck` | Python 3.11 or later, kind, kubectl, and Docker or Podman | about three minutes |
+
+## Local demonstration
 
 ```sh
 demo/local/run.sh
 ```
 
-Needs only Python 3.11 or newer: no service, no network, no account. The script starts a small
-OpenAI-compatible serving stack on free local ports (an **engine**, and a **gateway** in front of
-it that checks an API key and forwards requests, like a real stack) and checks it with
-[`modelcheck`](../examples/modelcheck), the example tool built on the framework.
+### Overview
+
+The script requires no external service, network access or credentials. It starts a simulated
+OpenAI-compatible serving stack on free local ports: an **engine**, and a **gateway** in front
+of it that authenticates requests and forwards them. It then verifies the stack with
+[`modelcheck`](../examples/modelcheck).
 
 The profile, [`stack.toml`](../examples/modelcheck/profiles/stack.toml), declares both layers and
-what a correct one does: the model it serves, the status for an unknown model, a latency budget
-per layer, and that only the gateway requires a key. Seven cases then run against each layer:
+the behaviour expected of each: the model served, the status returned for an unknown model, a
+latency budget per layer, and that only the gateway requires an API key. The following checks
+run against each layer:
 
-| Case | Checks that the layer... |
+| Check | Verifies that the layer |
 |---|---|
 | `models.lists_declared_model` | lists the declared model |
-| `chat.completion[user_only]`, `[with_system]` | answers with content and a valid finish reason, for two prompt shapes |
-| `chat.usage_adds_up` | reports token usage that adds up |
-| `chat.latency` | answers within its own declared budget (exclusive: never runs alongside another case) |
-| `stream.well_formed` | streams valid chunks, one finish reason, and ends with `data: [DONE]` |
-| `errors.unknown_model` | refuses an unknown model with its declared status, in a JSON error envelope |
-| `auth.rejects_bad_key` | refuses a wrong key: on the gateway; **skipped** on the engine, which does not declare `auth` |
+| `chat.completion[user_only]`, `[with_system]` | returns content and a valid finish reason, for two prompt structures |
+| `chat.usage_adds_up` | reports consistent token usage |
+| `chat.latency` | responds within its declared latency budget; runs exclusively, never concurrently with other checks |
+| `stream.well_formed` | streams valid chunks with a single finish reason, terminated by `data: [DONE]` |
+| `errors.unknown_model` | rejects an unknown model with its declared status, in a JSON error envelope |
+| `auth.rejects_bad_key` | rejects an invalid key; runs on the gateway and is skipped on the engine, which does not declare authentication |
 
-The script runs twice:
+### Procedure
 
-1. **Last night**: the stack is healthy. Every case passes (the engine's auth case is skipped,
-   and says why), and the run is published to `demo/local/out/archive/` as the nightly baseline.
-2. **Today**: the stack restarts with a gateway bug: it drops the `data: [DONE]` that ends every
-   stream, which leaves clients waiting. `stream.well_formed` fails on the gateway and passes on
-   the engine behind it, so the bug is in the gateway, and the comparison with last night lists
-   it as the one regression.
+The script performs two runs:
+
+1. **Baseline.** The stack is healthy. All checks pass, the engine's authentication check is
+   skipped with its reason recorded, and the run is archived to `demo/local/out/archive/` as the
+   nightly baseline.
+2. **Regression.** The stack restarts with a gateway defect: streamed responses no longer end with
+   `data: [DONE]`, which leaves clients waiting indefinitely. `stream.well_formed` fails on the
+   gateway and passes on the engine, isolating the defect to the gateway, and the comparison
+   with the baseline reports it as the single regression.
+
+### Expected results
 
 ```
   case                             gateway   engine
@@ -46,11 +60,15 @@ The script runs twice:
   regression: gateway stream.well_formed: pass -> fail
 ```
 
-Open the `report.html` files the script points to: every case, with what it checked.
-`demo/local/out/` also has both run directories and the published archive.
+The script prints the location of each run's HTML report, which lists every check with its
+recorded observations. `demo/local/out/` contains both run directories and the archive. The
+script exits with status 0 when the demonstration behaves as described, and runs in CI on every
+change.
 
-The fake stack can break in other ways too; each is a test of `modelcheck`
-(`examples/modelcheck/tests/`) and can be started by hand:
+### Further scenarios
+
+The simulated stack supports additional defects, each covered by the `modelcheck` test suite
+(`examples/modelcheck/tests/`). Any of them can be started manually:
 
 ```sh
 .venv/bin/python examples/modelcheck/tests/fake_stack.py --defect gateway_error_status
@@ -58,47 +76,58 @@ GATEWAY_URL=http://127.0.0.1:8400 ENGINE_URL=http://127.0.0.1:8401 GATEWAY_TOKEN
   .venv/bin/modelcheck run --profile examples/modelcheck/profiles/stack.toml
 ```
 
-## Kubernetes: the unattended setup on kind
+## Kubernetes demonstration
 
 ```sh
-demo/kind/up.sh       # about a minute; needs kind, kubectl and docker or podman
-demo/kind/test.sh     # about two minutes; asserts the production behaviours
-demo/kind/down.sh     # removes the cluster
+demo/kind/up.sh       # create the cluster, deploy, and perform a run (about one minute)
+demo/kind/test.sh     # verify the operational behaviours (about two minutes)
+demo/kind/down.sh     # delete the cluster
 ```
 
-This demo uses `httpcheck`, the minimal example tool, against a small HTTP service.
-`up.sh` creates a local kind cluster, builds the runner image and deploys
-[`deploy/base`](../deploy/base), unchanged, with a demo overlay that adds:
+### Overview
 
-- `target`: a small HTTP service to test (go-httpbin);
-- `s3`: an S3-compatible store to publish to (moto's server), and a Job that creates the bucket;
-- the profile, settings and demo credentials.
+This demonstration deploys `httpcheck`, the minimal example tool, as it would run in production.
+`up.sh` creates a local kind cluster, builds the runner image, and deploys
+[`deploy/base`](../deploy/base) without modification, together with a demonstration overlay that
+adds:
 
-It then starts a run the way a rollout would (`deploy/trigger.sh`), waits for it, and reads the
-published run back from the bucket:
+- `target`: an HTTP service under test (go-httpbin);
+- `s3`: an S3-compatible object store for run archives (moto in server mode), and a Job that
+  creates the bucket;
+- the profile, settings and demonstration credentials.
+
+`up.sh` then starts a run as a deployment pipeline would, with `deploy/trigger.sh`, waits for it
+to complete, and reads the archived run back from the object store:
 
 ```
 ==> start a run, as a rollout would (deploy/trigger.sh)
-httpcheck: ok (exit 0) -> /work/2026-10-27T01-33-15Z-3be0
-published to s3://results/nightly/demo/2026-10-27T01-33-15Z-3be0/
+httpcheck: ok (exit 0) -> /work/2026-10-27T01-33-15-412Z-3be0
+published to s3://results/nightly/demo/2026-10-27T01-33-15-412Z-3be0/
 ==> read the published run back from the bucket
-s3://results/nightly/demo/2026-10-27T01-33-15Z-3be0/: ok, 5 passed, 0 failed, 0 errors, 1 skipped
+s3://results/nightly/demo/2026-10-27T01-33-15-412Z-3be0/: ok, 5 passed, 0 failed, 0 errors, 1 skipped
 ```
 
-`test.sh` then checks what matters when nobody is watching:
+### Verified behaviours
 
-| Scenario | Expected |
+`test.sh` verifies the behaviours that matter in unattended operation:
+
+| Scenario | Expected behaviour |
 |---|---|
-| The CronJob's schedule | it fires on its own, and the second nightly run compares with the first |
-| The target answers wrongly | exit `1`, the Job fails **without a retry**, the evidence is still published |
-| The target is down | exit `3` (your environment), not `1` (the target); still published |
+| Scheduled execution | The CronJob runs on schedule, and each scheduled run is compared with the previous one. |
+| The target returns incorrect responses | The run exits with status 1; the Job fails **without retrying**; the evidence is archived. |
+| The target is unavailable | The run exits with status 3 (environment), not 1 (target); the evidence is archived. |
 
-The cluster has its own kubeconfig, `demo/kind/.kubeconfig`: the scripts never read or change
-your own clusters or contexts.
+The same verification runs in CI (`kind-demo.yaml`).
 
-| File | What |
+### Isolation
+
+The demonstration uses a dedicated kubeconfig, `demo/kind/.kubeconfig`, and every `kubectl`
+command is bound to the demonstration cluster. The scripts never read or modify other clusters
+or contexts.
+
+| File | Purpose |
 |---|---|
-| [`kind/up.sh`](kind/up.sh), [`kind/test.sh`](kind/test.sh), [`kind/down.sh`](kind/down.sh) | create and run; assert; remove |
-| [`kind/lib.sh`](kind/lib.sh) | shared helpers; every `kubectl` call is pinned to the demo cluster |
-| [`kind/overlay/`](kind/overlay) | the demo overlay on top of `deploy/base` |
-| [`kind/cluster.yaml`](kind/cluster.yaml) | the one-node cluster |
+| [`kind/up.sh`](kind/up.sh), [`kind/test.sh`](kind/test.sh), [`kind/down.sh`](kind/down.sh) | deployment and run; verification; removal |
+| [`kind/lib.sh`](kind/lib.sh) | shared functions; every `kubectl` call is bound to the demonstration cluster |
+| [`kind/overlay/`](kind/overlay) | the demonstration overlay applied to `deploy/base` |
+| [`kind/cluster.yaml`](kind/cluster.yaml) | the single-node cluster configuration |

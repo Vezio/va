@@ -177,28 +177,37 @@ EOF
 cat >"$dest/README.md" <<EOF
 # $name
 
-Checks for a deployed system, built on [cli-framework]($repo_url) ($pinned).
+\`$name\` verifies a deployed system. It is built on [cli-framework]($repo_url) ($pinned).
+
+## Getting started
+
+Requirements: Python 3.11 or later.
 
 \`\`\`sh
-python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"   # Python 3.11 or newer
+python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
 .venv/bin/python -m pytest -q
 .venv/bin/$name profile show profiles/example.toml
 GATEWAY_URL=https://... GATEWAY_TOKEN=... BACKEND_URL=https://... \\
   .venv/bin/$name run --profile profiles/example.toml --html
 \`\`\`
 
-| Path | What |
+## Project layout
+
+| Path | Purpose |
 |---|---|
-| \`src/$name/cases/\` | the checks: add a module, then import it in \`cases/__init__.py\` |
-| \`src/$name/profile.py\` | what a profile may declare, and its validation |
-| \`src/$name/client.py\` | the recording HTTP client the cases use |
-| \`src/$name/cli.py\` | the \`run\` and \`profile\` commands; \`job\`, \`publish\`, \`compare\` and \`notify\` come from the framework |
-| \`profiles/\` | profiles: names of environment variables, never URLs or keys |
-| \`tests/\` | a fake server with switchable defects; every case proven to fail against its defect |
-| \`container/\` | the runner image: run \`scripts/lock.sh\` to pin its dependencies, then build |
+| \`src/$name/cases/\` | the checks; a new module must be imported in \`cases/__init__.py\` |
+| \`src/$name/profile.py\` | the profile schema and its validation |
+| \`src/$name/client.py\` | the recording HTTP client used by the checks |
+| \`src/$name/cli.py\` | the \`run\` and \`profile\` commands; \`job\`, \`publish\`, \`compare\` and \`notify\` are provided by the framework |
+| \`profiles/\` | profiles; these name environment variables and never contain addresses or credentials |
+| \`tests/\` | a simulated service with selectable defects; each check is proven to fail against one |
+| \`container/\` | the runner image definition; run \`scripts/lock.sh\` to pin its dependencies before building |
 | \`deploy/\` | a Kubernetes CronJob running \`$name job\`, an example overlay and \`trigger.sh\` |
 
-Writing cases, running, extending and deploying: $repo_url/tree/main/docs
+## Documentation
+
+Writing checks, designing profiles, operation and deployment are covered by the cli-framework
+guides: $repo_url/tree/main/docs
 EOF
 
 echo "created $dest: the tool $name, on cli-framework $pinned"

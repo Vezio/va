@@ -1,10 +1,11 @@
 # deploy
 
-Kubernetes manifests for running a tool unattended. See [docs/deploying.md](../docs/deploying.md).
+Kubernetes manifests for unattended operation of a tool. For the complete procedure, see
+[Deploying](../docs/deploying.md).
 
-| Path | What |
+| Path | Purpose |
 |---|---|
-| `base/` | the CronJob (runs `<tool> job` nightly) and the Role for triggering runs |
-| `overlays/example/` | an overlay with placeholders: copy it next to your system's manifests |
-| `trigger.sh` | start a one-off run from the CronJob's pod spec, e.g. after a rollout |
-| `secrets.env.example` | the credentials a run can use; fill in outside Git |
+| `base/` | the CronJob, which runs `<tool> job` nightly, and the Role used to trigger runs on demand |
+| `overlays/example/` | an example overlay with placeholders, to be copied alongside the target system's manifests |
+| `trigger.sh` | starts a one-off run from the CronJob's pod specification, for example after a rollout |
+| `secrets.env.example` | the credentials a run may use; to be completed outside version control |

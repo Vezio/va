@@ -1,11 +1,11 @@
 # Documentation
 
-| | |
+| Guide | Contents |
 |---|---|
-| [Getting started](getting-started.md) | install, run the demo, build your first tool |
-| [Profiles](profiles.md) | design the profile that describes your targets |
-| [Usage](usage.md) | commands, flags, the run directory, exit codes, comparison, notifications |
-| [Extending](extending.md) | your own cases, clients, checks, hooks, notifiers, storage, commands |
-| [Deploying](deploying.md) | Kubernetes CronJob, on-demand runs, CI, the runner image |
-| [Architecture](architecture.md) | modules, data, concurrency, state |
-| [Design](design.md) | the principles behind it, and why each exists |
+| [Getting started](getting-started.md) | Installation, the demonstration, and creating a first tool |
+| [Profiles](profiles.md) | Designing and validating the profile that describes the targets |
+| [Usage](usage.md) | Commands, flags, run directories, exit codes, comparison and notifications |
+| [Extending](extending.md) | Checks, protocol clients, preflight checks, hooks, notifiers, storage and commands |
+| [Deploying](deploying.md) | Operation as a Kubernetes CronJob, on-demand runs, CI and the runner image |
+| [Architecture](architecture.md) | Code organisation, data model, concurrency and state |
+| [Design](design.md) | Design principles and their rationale |
