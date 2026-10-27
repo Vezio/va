@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Set up .venv with cli-framework and the example tools, httpcheck and modelcheck.
+# Set up .venv with VA and the example tools, httpcheck and modelcheck.
 #
-#   scripts/install.sh            cli-framework (with S3 and YAML support) and both examples
+#   scripts/install.sh            VA (with S3 and YAML support) and both examples
 #   scripts/install.sh --dev      also the development tools: pytest, ruff, mypy, moto
 #   scripts/install.sh --recreate throw the virtualenv away first
 #

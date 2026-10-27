@@ -8,7 +8,7 @@ by implementing `Sink` and registering a factory for its scheme:
     @PLUGINS.sinks.register("gs")
     def gcs(uri: str) -> Sink: ...
 
-or from another package, through the `cli_framework.sinks` entry point group.
+or from another package, through the `va.sinks` entry point group.
 """
 
 from __future__ import annotations

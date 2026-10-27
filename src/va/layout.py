@@ -28,11 +28,11 @@ class RunFile(StrEnum):
 
 
 class Schema(StrEnum):
-    RESULTS = "cli_framework.results/1"
-    OUTCOME = "cli_framework.outcome/1"
-    MANIFEST = "cli_framework.manifest/1"
-    COMPARISON = "cli_framework.comparison/1"
-    REPORT = "cli_framework.report/1"
+    RESULTS = "va.results/1"
+    OUTCOME = "va.outcome/1"
+    MANIFEST = "va.manifest/1"
+    COMPARISON = "va.comparison/1"
+    REPORT = "va.report/1"
 
 
 class ArchiveKey(StrEnum):

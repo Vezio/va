@@ -2,8 +2,8 @@
 # demo's own kubeconfig and context: nothing here can reach another cluster.
 # shellcheck shell=bash
 
-CLUSTER="${CLUSTER:-cli-framework-demo}"
-NAMESPACE=cli-framework-demo
+CLUSTER="${CLUSTER:-va-demo}"
+NAMESPACE=va-demo
 IMAGE=localhost/httpcheck:demo
 KUBECONFIG="$(pwd)/demo/kind/.kubeconfig"
 export KUBECONFIG
@@ -45,7 +45,7 @@ in_cluster_python() {
 published_outcome() {
   in_cluster_python "
 import json
-from cli_framework.publish import Archive
+from va.publish import Archive
 a = Archive.at('s3://results/nightly')
 o = a.outcome('demo', '$1')
 c = o.counts

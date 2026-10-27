@@ -1,4 +1,4 @@
-"""modelcheck: an example cli-framework tool that checks an OpenAI-compatible serving stack,
+"""modelcheck: an example VA tool that checks an OpenAI-compatible serving stack,
 layer by layer."""
 
 __version__ = "0.1.0"

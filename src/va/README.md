@@ -1,13 +1,13 @@
-# cli_framework
+# va
 
-Reference for the `cli_framework` package: what each module provides, how the pieces fit
+Reference for the `va` package: what each module provides, how the pieces fit
 together during a run, and which names form the public API. For task-oriented guides, see the
 [documentation](../../docs/README.md); for the rationale behind the design, see
 [Design](../../docs/design.md).
 
 ## Public API
 
-The names exported from the package root (`from cli_framework import ...`) are the supported
+The names exported from the package root (`from va import ...`) are the supported
 API. Other names are reachable from their modules and may change between minor versions before
 1.0.
 
@@ -20,7 +20,7 @@ API. Other names are reachable from their modules and may change between minor v
 | Comparison and reporting | `compare`, `Comparison`, `Change`, `ChangeKind`, `RunReport` |
 | Publication | `deliver`, `Archive`, `Sink` |
 | Lifecycle hooks | `RunHooks`, `HookChain`, `ProgressLog` |
-| Notification | `Notifier` (built-in notifiers in `cli_framework.notifiers`) |
+| Notification | `Notifier` (built-in notifiers in `va.notifiers`) |
 | Configuration and state | `Settings`, `Key`, `Defaults`, `DEFAULTS`, `RetryPolicy`, `Redactor`, `REDACTOR`, `PluginRegistry`, `Plugins`, `PLUGINS` |
 | Exit codes | `ExitCode` |
 
@@ -112,9 +112,9 @@ comparison, publication and notification itself.
 | A protocol client | any class; record exchanges with `RunDir.append_jsonl` | your tool's state object |
 | A preflight check | a callable returning `Problem`s | `Session(checks=...)` |
 | Run behaviour | a `RunHooks` subclass | `Session(hooks=...)` |
-| A notification channel | a class with `name` and `send(report)` | `PLUGINS.notifiers`, or the `cli_framework.notifiers` entry point |
-| A storage backend | a class following `Sink` | `PLUGINS.sinks`, or the `cli_framework.sinks` entry point |
-| A profile format | a function from text to a mapping | `PLUGINS.profile_loaders`, or the `cli_framework.profile_loaders` entry point |
+| A notification channel | a class with `name` and `send(report)` | `PLUGINS.notifiers`, or the `va.notifiers` entry point |
+| A storage backend | a class following `Sink` | `PLUGINS.sinks`, or the `va.sinks` entry point |
+| A profile format | a function from text to a mapping | `PLUGINS.profile_loaders`, or the `va.profile_loaders` entry point |
 | A command | a class following `Command` | `App.add(...)` |
 | A skip reason | `SkipClass` | `App(skip_classes=SkipClasses.default().extend(...))` |
 

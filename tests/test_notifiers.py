@@ -9,10 +9,10 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import pytest
 
-from cli_framework.compare import compare
-from cli_framework.exit_codes import ExitCode
-from cli_framework.model import ResultRecord, RunOutcome, Verdict
-from cli_framework.notifiers import (
+from va.compare import compare
+from va.exit_codes import ExitCode
+from va.model import ResultRecord, RunOutcome, Verdict
+from va.notifiers import (
     NotifierError,
     SlackNotifier,
     WebhookNotifier,
@@ -20,10 +20,10 @@ from cli_framework.notifiers import (
     parse_spec,
     parse_specs,
 )
-from cli_framework.notifiers.slack import format_text
-from cli_framework.plugins import PLUGINS
-from cli_framework.redact import REDACTOR
-from cli_framework.report import RunReport
+from va.notifiers.slack import format_text
+from va.plugins import PLUGINS
+from va.redact import REDACTOR
+from va.report import RunReport
 
 
 @pytest.fixture(autouse=True)
@@ -69,7 +69,7 @@ def test_report_is_one_source_for_every_channel():
     report = _report()
     assert report.headline == "FAILED" and report.comparison.regressions
     assert "health.status" in report.markdown() and "regression" in report.markdown()
-    assert report.to_dict()["schema"] == "cli_framework.report/1"
+    assert report.to_dict()["schema"] == "va.report/1"
 
 
 def test_webhook_posts_the_report_as_json(receiver):

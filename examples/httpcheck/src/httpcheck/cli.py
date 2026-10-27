@@ -1,4 +1,4 @@
-"""`httpcheck`: an example app built on cli_framework. Copy it to start a new tool.
+"""`httpcheck`: an example app built on va. Copy it to start a new tool.
 
 httpcheck profile validate PROFILE     offline: every problem with its path
 httpcheck profile show PROFILE         what would run, and what would skip and why
@@ -13,7 +13,7 @@ import argparse
 import threading
 from pathlib import Path
 
-from cli_framework import (
+from va import (
     App,
     ExitCode,
     RunOptions,
@@ -23,10 +23,10 @@ from cli_framework import (
     preflight,
     run_app,
 )
-from cli_framework.log import emit
-from cli_framework.redact import REDACTOR
-from cli_framework.rundir import RunDir
-from cli_framework.settings import Key
+from va.log import emit
+from va.redact import REDACTOR
+from va.rundir import RunDir
+from va.settings import Key
 
 from . import __version__
 from .cases import REGISTRY

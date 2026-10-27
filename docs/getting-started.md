@@ -5,7 +5,7 @@ From nothing to a tool of your own. You need Python 3.11 or newer, and `git`.
 ## 1. See it work
 
 ```sh
-git clone https://github.com/Vezio/cli-framework && cd cli-framework
+git clone https://github.com/Vezio/va && cd va
 demo/local/run.sh
 ```
 
@@ -24,7 +24,7 @@ python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
 ```
 
 `mytool` is your tool's name: a lowercase Python identifier. The tool depends on the exact
-commit of cli-framework you ran `new-app.sh` from (see its `pyproject.toml`); that commit must be
+commit of VA you ran `new-app.sh` from (see its `pyproject.toml`); that commit must be
 on GitHub. If you are changing the framework itself, `scripts/new-app.sh --local mytool
 ../mytool` depends on your checkout instead.
 
@@ -77,7 +77,7 @@ Create `src/mytool/cases/models.py`:
 
 from __future__ import annotations
 
-from cli_framework import Context
+from va import Context
 
 from . import REGISTRY
 

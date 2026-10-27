@@ -3,7 +3,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "cli-framework"
+name = "va-framework"
 dynamic = ["version"]
 description = "A skeleton for CLIs that test deployed systems: exit codes that separate blame, evidence for every verdict, redacted logs, run directories published to file:// or s3://, Kubernetes CronJobs and CI."
 authors = [{ name = "Tyler Vezio Rimaldi" }, { name = "Alberto Perdomo" }]
@@ -18,7 +18,7 @@ dependencies = ["PyYAML>=6"]   # profiles are YAML by default
 
 [project.optional-dependencies]
 s3 = ["boto3>=1.34"]           # publishing to S3 or an S3-compatible store
-yaml = []                      # kept so existing pins of cli-framework[yaml] still resolve
+yaml = []                      # kept so existing pins of va-framework[yaml] still resolve
 # Pin ruff exactly, and keep .pre-commit-config.yaml in sync with it.
 dev = ["ruff==0.8.6", "pytest>=8", "types-PyYAML", "mypy>=1.10", "moto[s3]>=5", "boto3>=1.34"]
 
@@ -26,10 +26,10 @@ dev = ["ruff==0.8.6", "pytest>=8", "types-PyYAML", "mypy>=1.10", "moto[s3]>=5", 
 where = ["src"]
 
 [tool.setuptools.dynamic]
-version = {attr = "cli_framework.__version__"}
+version = {attr = "va.__version__"}
 
 [tool.setuptools.package-data]
-cli_framework = ["py.typed", "outputs/*.css"]
+va = ["py.typed", "outputs/*.css"]
 
 [tool.ruff]
 line-length = 100
@@ -37,7 +37,7 @@ target-version = "py311"
 extend-exclude = ["examples/*/build"]
 
 [tool.ruff.lint]
-# T20 bans print(): all output goes through the logger tree (cli_framework.log).
+# T20 bans print(): all output goes through the logger tree (va.log).
 select = ["E", "F", "W", "I", "T20", "B", "UP"]
 
 [tool.mypy]

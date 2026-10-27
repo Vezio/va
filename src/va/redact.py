@@ -6,7 +6,7 @@ body) and in every notification.
 
 Secrets are process-wide (one environment, one set of logs), so there is one process-wide
 `Redactor`, `REDACTOR`, which the logging filters and writers share. It is the only
-module-level mutable state in cli_framework, and it is deliberate. Tests and embedders can build
+module-level mutable state in va, and it is deliberate. Tests and embedders can build
 their own `Redactor` and pass it where an API accepts one.
 """
 

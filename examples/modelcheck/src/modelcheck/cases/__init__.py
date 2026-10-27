@@ -1,7 +1,7 @@
 """modelcheck's cases. Each module registers into REGISTRY on import: a new module must be
 imported here. Every case is proven to fail against a defect in tests/fake_stack.py."""
 
-from cli_framework import CaseRegistry
+from va import CaseRegistry
 
 REGISTRY = CaseRegistry()
 

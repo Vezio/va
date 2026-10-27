@@ -33,7 +33,7 @@ fi
 step "build and load the runner image"
 "$ENGINE" build -q -f container/Containerfile -t "$IMAGE" . >/dev/null
 if [ "$ENGINE" = podman ]; then
-  archive="$(mktemp -t cli-framework-demo.XXXXXX).tar"
+  archive="$(mktemp -t va-demo.XXXXXX).tar"
   trap 'rm -f "$archive"' EXIT
   podman save -q -o "$archive" "$IMAGE"
   kind load image-archive "$archive" --name "$CLUSTER"

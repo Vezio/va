@@ -10,4 +10,4 @@
 | [Deploying](deploying.md) | Operation as a Kubernetes CronJob, on-demand runs, CI and the runner image |
 | [Architecture](architecture.md) | Code organisation, data model, concurrency and state |
 | [Design](design.md) | Design principles and their rationale |
-| [Package reference](../src/cli_framework/README.md) | The `cli_framework` package: public API, modules and extension points |
+| [Package reference](../src/va/README.md) | The `va` package: public API, modules and extension points |

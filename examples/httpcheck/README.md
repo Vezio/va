@@ -1,6 +1,6 @@
 # httpcheck
 
-`httpcheck` is the minimal example tool built on cli-framework. It verifies any HTTP service
+`httpcheck` is the minimal example tool built on VA. It verifies any HTTP service
 against a profile: health, content type, handling of unknown paths, and authentication.
 
 It serves two purposes: it is the template that `scripts/new-app.sh` copies to create a new

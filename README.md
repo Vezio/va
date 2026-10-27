@@ -1,19 +1,19 @@
-# cli-framework
+# VA: Verify and Attribute
 
-[![Tests](https://github.com/Vezio/cli-framework/actions/workflows/offline-tests.yaml/badge.svg)](https://github.com/Vezio/cli-framework/actions/workflows/offline-tests.yaml)
+[![Tests](https://github.com/Vezio/va/actions/workflows/offline-tests.yaml/badge.svg)](https://github.com/Vezio/va/actions/workflows/offline-tests.yaml)
 [![Python 3.11 | 3.12](https://img.shields.io/badge/python-3.11%20%7C%203.12-3776AB?logo=python&logoColor=white)](pyproject.toml)
 
-cli-framework is a Python framework for building command-line tools that verify deployed
-systems. It was designed for model-serving infrastructure (inference engines, routers and
-gateways, and the rollouts that change them) and applies to any service reachable over the
-network.
+VA is a Python framework for building command-line tools that verify deployed systems and
+attribute every failure to the layer, and the party, responsible. It was designed for
+model-serving infrastructure (inference engines, routers and gateways, and the rollouts that
+change them) and applies to any service reachable over the network.
 
-A tool built on cli-framework defines its checks; the framework supplies the capabilities every
+A tool built on VA defines its checks; the framework supplies the capabilities every
 verification tool needs around them: declarative profiles, recorded evidence, exit codes that
 attribute failures, reports, archival and comparison of runs, notifications, and unattended
 operation on Kubernetes and in CI.
 
-Built by Tyler Vezio Rimaldi ([@Vezio](https://github.com/Vezio)) and Alberto Perdomo
+Built by Tyler **V**ezio Rimaldi ([@Vezio](https://github.com/Vezio)) and **A**lberto Perdomo
 ([@albertoperdomo2](https://github.com/albertoperdomo2)).
 
 ## Contents
@@ -44,7 +44,7 @@ Requirements: Python 3.11 or later. No external service, network access or crede
 needed.
 
 ```sh
-git clone https://github.com/Vezio/cli-framework && cd cli-framework
+git clone https://github.com/Vezio/va && cd va
 demo/local/run.sh
 ```
 
@@ -109,12 +109,12 @@ A tool implements its `run` command, typically a few lines that configure a `Ses
 
 ## Installation
 
-cli-framework is distributed from source and is not published to PyPI. Depend on a specific
+VA is distributed from source and is not published to PyPI. Depend on a specific
 commit so that every installation and image build uses identical code:
 
 ```toml
 dependencies = [
-  "cli-framework[s3,yaml] @ https://github.com/Vezio/cli-framework/archive/<commit>.tar.gz",
+  "va-framework[s3,yaml] @ https://github.com/Vezio/va/archive/<commit>.tar.gz",
 ]
 ```
 
@@ -134,12 +134,12 @@ the framework depends only on the Python standard library and PyYAML.
 | [Deploying](docs/deploying.md) | Operation as a Kubernetes CronJob and in CI |
 | [Architecture](docs/architecture.md) | Code organisation, data model, concurrency and state |
 | [Design](docs/design.md) | Design principles and their rationale |
-| [Package reference](src/cli_framework/README.md) | The `cli_framework` package: public API, modules and extension points |
+| [Package reference](src/va/README.md) | The `va` package: public API, modules and extension points |
 
 ## Repository layout
 
 ```
-src/cli_framework/     the framework
+src/va/     the framework
 examples/modelcheck/   example tool for OpenAI-compatible serving stacks, used by the demonstration
 examples/httpcheck/    minimal example tool for HTTP services, used as the template for new tools
 demo/                  local and Kubernetes (kind) demonstrations
@@ -153,7 +153,7 @@ scripts/               installation, project generation and dependency locking
 
 ## Versioning
 
-The current version is 0.3. Until 1.0, minor versions may change behaviour; such changes are
+The current version is 0.4. Until 1.0, minor versions may change behaviour; such changes are
 identified in [CHANGELOG.md](CHANGELOG.md), which should be reviewed before updating a pinned
 commit.
 

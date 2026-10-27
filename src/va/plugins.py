@@ -1,13 +1,13 @@
 """Named, pluggable implementations: notifiers, result sinks, profile loaders.
 
-Every extension point in cli_framework is a `PluginRegistry`: a name (a URI scheme, a notifier kind,
+Every extension point in va is a `PluginRegistry`: a name (a URI scheme, a notifier kind,
 a file suffix) mapped to a factory. Built-ins register themselves on import; an app registers
 its own in code; a third-party package registers through a Python entry point, with no change
-to cli_framework or the app:
+to va or the app:
 
     # pyproject.toml of a plugin package
-    [project.entry-points."cli_framework.notifiers"]
-    pagerduty = "cli_framework_pagerduty:PagerDutyNotifier"
+    [project.entry-points."va.notifiers"]
+    pagerduty = "va_pagerduty:PagerDutyNotifier"
 
 Entry points are loaded lazily, the first time a registry is asked for a name it does not
 have, so an unused plugin costs nothing and a broken one only fails when it is selected.
@@ -99,10 +99,10 @@ class Plugins:
     def __init__(self) -> None:
         # Values are factories: notifier kind -> (target) -> Notifier; URI scheme -> (uri) -> Sink;
         # file suffix -> (text) -> mapping. Typed loosely here to keep this module dependency-free.
-        self.notifiers: PluginRegistry[Any] = PluginRegistry("notifier", "cli_framework.notifiers")
-        self.sinks: PluginRegistry[Any] = PluginRegistry("result sink", "cli_framework.sinks")
+        self.notifiers: PluginRegistry[Any] = PluginRegistry("notifier", "va.notifiers")
+        self.sinks: PluginRegistry[Any] = PluginRegistry("result sink", "va.sinks")
         self.profile_loaders: PluginRegistry[Any] = PluginRegistry(
-            "profile format", "cli_framework.profile_loaders"
+            "profile format", "va.profile_loaders"
         )
 
 

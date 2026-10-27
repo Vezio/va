@@ -1,6 +1,6 @@
 # Design
 
-The principles cli-framework encodes, and why each exists. Every rule here guards against a confident
+The principles VA encodes, and why each exists. Every rule here guards against a confident
 wrong answer, a lost run or a leaked key. Read this before changing a primitive; the code
 follows from it.
 
@@ -14,7 +14,7 @@ rollback). The same shell fits any deployed service.
 
 It tests; it does not deploy. Different apps vary the *checks* and the *commands*; the shell
 around them (exit codes, logs, evidence, publishing, scheduling) stays the same, and that
-shell is cli-framework.
+shell is VA.
 
 Typical apps built on it:
 
@@ -183,7 +183,7 @@ what format profiles are in) is a named plugin in a `PluginRegistry`, chosen by 
 time (`--notify slack:env:SLACK_WEBHOOK`, `--remote-output gs://...`, `profile.jsonnet`) and
 discoverable through Python entry points. Slack is one notifier among several, not a special
 case: the generic `webhook` posts the whole `RunReport` as JSON, `exec` pipes it to any command,
-and a new channel is one class. A tool built on cli-framework never hard-codes a vendor.
+and a new channel is one class. A tool built on VA never hard-codes a vendor.
 
 ## 17. One report, many renderings
 

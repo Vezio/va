@@ -5,10 +5,10 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "httpcheck"
 dynamic = ["version"]
-description = "Example cli-framework tool: check deployed HTTP services against a profile"
+description = "Example VA tool: check deployed HTTP services against a profile"
 requires-python = ">=3.11"
 # A tool outside this repository pins a commit instead; scripts/new-app.sh writes it.
-dependencies = ["cli-framework>=0.3"]
+dependencies = ["va-framework>=0.4"]
 
 [project.scripts]
 httpcheck = "httpcheck.cli:main"

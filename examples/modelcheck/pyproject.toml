@@ -5,9 +5,9 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "modelcheck"
 dynamic = ["version"]
-description = "Example cli-framework tool: check an OpenAI-compatible serving stack, layer by layer"
+description = "Example VA tool: check an OpenAI-compatible serving stack, layer by layer"
 requires-python = ">=3.11"
-dependencies = ["cli-framework>=0.3"]
+dependencies = ["va-framework>=0.4"]
 
 [project.scripts]
 modelcheck = "modelcheck.cli:main"

@@ -4,13 +4,22 @@ Pin a commit (see the [README](README.md#installation)) and read this before mov
 a newer one. Until 1.0, a minor version may change behaviour; each change that can affect an
 existing tool is marked **changed**.
 
-## 0.3.0
+## 0.4.0
 
+- **changed**: renamed to **VA** (Verify and Attribute). The package installs as
+  `va-framework` and imports as `va` (formerly `cli-framework` and `cli_framework`). Tools must
+  update their dependency and imports. Plugin entry-point groups, schema identifiers, logger
+  names and default metric names change accordingly (`va.notifiers`, `va.results/1`, `va_*`).
 - **changed**: YAML is the default profile format, in the examples, the scaffold and the
   documentation; PyYAML is now a core dependency. TOML and JSON profiles still load. The `yaml`
   extra remains, empty, so existing pins keep resolving.
 - New guides: [Extending profiles](docs/extending-profiles.md), and a
-  [package reference](src/cli_framework/README.md) for `cli_framework`.
+  [package reference](src/va/README.md) for `va`.
+- Piping a tool's output into a reader that stops early (`| head`) no longer prints a
+  traceback per line.
+
+## 0.3.0
+
 - **changed**: `--notify` on the command line now replaces the notifiers in `<TOOL>_NOTIFY`,
   like every other flag and its variable; it used to add to them.
 - **changed**: run ids carry milliseconds (`2026-10-27T02-08-44-123Z-ab12`), so runs started in
@@ -30,8 +39,6 @@ existing tool is marked **changed**.
 - S3-compatible stores are addressed path-style when `AWS_ENDPOINT_URL_S3` is set.
 - `scripts/install.sh` repairs a virtualenv created without pip, and replaces one on an old Python.
 - The progress line counts what runs: `16 checks (7 cases x 2 targets)`.
-- Piping a tool's output into a reader that stops early (`| head`) no longer prints a
-  traceback per line.
 
 ## 0.2.0
 

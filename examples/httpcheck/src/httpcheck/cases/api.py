@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from cli_framework.runner import Context
+from va.runner import Context
 
 from . import REGISTRY
 
@@ -27,7 +27,7 @@ def unknown_path(ctx: Context) -> None:
     t = ctx.target
     exchange = ctx.state.client(t).request(
         ctx.variant,
-        "/cli-framework-no-such-path",
+        "/va-no-such-path",
         body=b"{}" if ctx.variant == "POST" else None,
         headers={"content-type": "application/json"},
         case_id=ctx.case_id,
@@ -41,7 +41,7 @@ def rejects_bad_key(ctx: Context) -> None:
     t = ctx.target
     exchange = ctx.state.client(t).get(
         t.health_path,
-        headers={"Authorization": "Bearer cli-framework-wrong-key"},
+        headers={"Authorization": "Bearer va-wrong-key"},
         case_id=ctx.case_id,
     )
     ctx.require("http_status", exchange.status, 401)

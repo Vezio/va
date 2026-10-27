@@ -1,6 +1,6 @@
 ---
 name: adding-a-case
-description: Use when adding or changing a case, a target capability, a skip class or a command in a cli-framework app
+description: Use when adding or changing a case, a target capability, a skip class or a command in a VA app
 ---
 
 # Adding a case

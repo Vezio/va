@@ -1,6 +1,6 @@
 # Demonstrations
 
-Two demonstrations show cli-framework in operation: a local demonstration that runs in a few
+Two demonstrations show VA in operation: a local demonstration that runs in a few
 seconds, and a Kubernetes demonstration that deploys a tool to a disposable cluster and verifies
 its operational behaviour.
 

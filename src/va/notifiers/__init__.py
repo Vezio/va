@@ -15,7 +15,7 @@ URLs are credentials. Several specs can be given; each is delivered independentl
 failure in one does not stop the others.
 
 A new channel (Teams, Discord, email, PagerDuty, a ticketing system) is one class registered
-under a kind, in code or through the `cli_framework.notifiers` entry point group:
+under a kind, in code or through the `va.notifiers` entry point group:
 
     @PLUGINS.notifiers.register("teams")
     class TeamsNotifier:

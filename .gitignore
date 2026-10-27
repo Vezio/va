@@ -219,7 +219,7 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
-# cli_framework
+# va
 runs/
 *.local.toml
 *.local.yaml

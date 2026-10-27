@@ -3,7 +3,7 @@ profile allows."""
 
 from __future__ import annotations
 
-from cli_framework import Context
+from va import Context
 
 from . import REGISTRY
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 
-from cli_framework import Context
+from va import Context
 
 from ..client import sse_events
 from . import REGISTRY

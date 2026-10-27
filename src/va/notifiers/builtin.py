@@ -56,7 +56,7 @@ def post_json(
 
 @dataclass
 class WebhookNotifier:
-    """POSTs the whole RunReport as JSON (schema cli_framework.report/1): the integration point for
+    """POSTs the whole RunReport as JSON (schema va.report/1): the integration point for
     any system that accepts a webhook (an incident tool, a chat bridge, your own service)."""
 
     url: str

@@ -1,3 +1,3 @@
-# The runner image's third-party dependencies: cli_framework's runtime extras. Lock with scripts/lock.sh.
+# The runner image's third-party dependencies: va's runtime extras. Lock with scripts/lock.sh.
 boto3>=1.34
 PyYAML>=6

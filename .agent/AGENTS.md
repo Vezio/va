@@ -1,6 +1,6 @@
 # Working in this repo
 
-`src/cli_framework/` is a library of primitives for CLIs that test deployed systems;
+`src/va/` is a library of primitives for CLIs that test deployed systems;
 `examples/httpcheck/` is a complete app built on it. Read [../docs/design.md](../docs/design.md) before
 changing a primitive: each rule there exists because breaking it produced a wrong answer.
 
@@ -31,7 +31,7 @@ changing a primitive: each rule there exists because breaking it produced a wron
 ```sh
 .venv/bin/python -m pytest -q
 .venv/bin/ruff check . && .venv/bin/ruff format --check .
-.venv/bin/mypy src/cli_framework examples/httpcheck/src examples/modelcheck/src
+.venv/bin/mypy src/va examples/httpcheck/src examples/modelcheck/src
 ```
 
 A new case needs its defect in the fake server and a test proving the case fails against it,

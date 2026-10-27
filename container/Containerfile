@@ -10,7 +10,7 @@ WORKDIR /src
 # cannot drift, and a tampered package fails the build.
 COPY container/requirements.lock ./
 RUN pip install --require-hashes -r requirements.lock
-# cli_framework and the app from source; their dependencies are already in place.
+# va and the app from source; their dependencies are already in place.
 COPY pyproject.toml README.md ./
 COPY src ./src
 COPY examples/httpcheck ./examples/httpcheck

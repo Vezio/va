@@ -32,7 +32,7 @@ whose default command is `job`.
    ```sh
    scripts/lock.sh
    ```
-   This writes `container/requirements.lock`: every dependency, cli-framework included, at an
+   This writes `container/requirements.lock`: every dependency, VA included, at an
    exact version with its hashes. The image installs only from the lock, with `--require-hashes`,
    so a rebuild cannot drift and a tampered package fails the build. Rerun it after changing
    `pyproject.toml`'s dependencies, and review the diff like code.

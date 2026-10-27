@@ -283,7 +283,7 @@ class Runner(Generic[S]):
 
         # Daemon threads: a case that hangs must never keep the process alive at exit.
         threads = [
-            threading.Thread(target=worker, name=f"cli-framework-worker-{i}", daemon=True)
+            threading.Thread(target=worker, name=f"va-worker-{i}", daemon=True)
             for i in range(min(self.workers, len(units)))
         ]
         for thread in threads:
@@ -371,9 +371,7 @@ class Runner(Generic[S]):
             except BaseException as exc:  # noqa: BLE001 -- re-raised in the caller's thread
                 outcome.append(exc)
 
-        thread = threading.Thread(
-            target=body, name=f"cli-framework-case-{case.case_id}", daemon=True
-        )
+        thread = threading.Thread(target=body, name=f"va-case-{case.case_id}", daemon=True)
         thread.start()
         thread.join(timeout)
         if thread.is_alive():

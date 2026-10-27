@@ -1,4 +1,4 @@
-"""cli_framework's own tests: no network beyond localhost, no cluster."""
+"""va's own tests: no network beyond localhost, no cluster."""
 
 from __future__ import annotations
 
@@ -9,15 +9,15 @@ from dataclasses import dataclass
 
 import pytest
 
-from cli_framework import kube, retry
-from cli_framework.cli import App, UsageError
-from cli_framework.compare import ChangeKind, compare
-from cli_framework.defaults import RetryPolicy
-from cli_framework.exit_codes import ExitCode, combine, label_of
-from cli_framework.hooks import RunHooks
-from cli_framework.layout import RunFile
-from cli_framework.log import configure, emit, get_logger
-from cli_framework.model import (
+from va import kube, retry
+from va.cli import App, UsageError
+from va.compare import ChangeKind, compare
+from va.defaults import RetryPolicy
+from va.exit_codes import ExitCode, combine, label_of
+from va.hooks import RunHooks
+from va.layout import RunFile
+from va.log import configure, emit, get_logger
+from va.model import (
     Check,
     ResultRecord,
     RunOutcome,
@@ -25,14 +25,14 @@ from cli_framework.model import (
     SkipClasses,
     Verdict,
 )
-from cli_framework.plugins import PLUGINS, PluginRegistry, UnknownPlugin
-from cli_framework.profile import Problems, ProfileError, load
-from cli_framework.publish import Archive, deliver
-from cli_framework.redact import REDACTOR, Redactor
-from cli_framework.rundir import RunDir
-from cli_framework.runner import CaseRegistry, Runner, Selector
-from cli_framework.settings import Key, Settings
-from cli_framework.sinks import FileSink, UnsupportedDestination, sink_for
+from va.plugins import PLUGINS, PluginRegistry, UnknownPlugin
+from va.profile import Problems, ProfileError, load
+from va.publish import Archive, deliver
+from va.redact import REDACTOR, Redactor
+from va.rundir import RunDir
+from va.runner import CaseRegistry, Runner, Selector
+from va.settings import Key, Settings
+from va.sinks import FileSink, UnsupportedDestination, sink_for
 
 
 @pytest.fixture(autouse=True)
@@ -473,7 +473,7 @@ def test_third_party_plugins_load_from_entry_points(monkeypatch):
         def load():
             return "the-teams-factory"
 
-    import cli_framework.plugins as plugins
+    import va.plugins as plugins
 
     monkeypatch.setattr(plugins, "entry_points", lambda group: [Point()] if group == "g" else [])
     registry: PluginRegistry[str] = PluginRegistry("notifier", "g")
@@ -481,7 +481,7 @@ def test_third_party_plugins_load_from_entry_points(monkeypatch):
 
 
 def test_notify_flag_replaces_the_environment(tmp_path):
-    from cli_framework.commands import notify_specs
+    from va.commands import notify_specs
 
     app = App("t", version="0", settings=Settings("T", {"T_NOTIFY": "log:,file:/x"}))
     parser = app.add_builtins().build_parser()
@@ -509,7 +509,7 @@ def test_problems_catch_misspelled_keys_and_ranges():
 
 
 def test_run_ids_sort_in_start_order_within_a_second():
-    from cli_framework.rundir import new_run_id
+    from va.rundir import new_run_id
 
     ids = []
     for _ in range(20):

@@ -2,7 +2,7 @@
 
 How the code is laid out, for people changing the framework or reading it to extend it well.
 To extend it, see [Extending](extending.md); for why it is shaped this way, [Design](design.md);
-for the public API module by module, the [package reference](../src/cli_framework/README.md).
+for the public API module by module, the [package reference](../src/va/README.md).
 
 ## A run, end to end
 
@@ -39,10 +39,10 @@ Every file a run writes is a serialised typed record, read back with `from_dict`
 | `RunReport` | notifications | what is said about a run: built from the outcome and comparison; every channel renders it |
 
 Enums, not strings: `Verdict`, `ExitCode` (an IntEnum: it is the process status), `Severity`,
-`PublicationStatus`, `ChangeKind`. Schemas are versioned (`cli_framework.results/1`, ...): adding a
+`PublicationStatus`, `ChangeKind`. Schemas are versioned (`va.results/1`, ...): adding a
 field is compatible; renaming or removing one needs a new version.
 
-## The library (`src/cli_framework/`)
+## The library (`src/va/`)
 
 | Module | Responsibility |
 |---|---|
@@ -106,13 +106,13 @@ background.
 
 ## Extension points
 
-Each is additive: no cli-framework change, no fork.
+Each is additive: no VA change, no fork.
 
 | To add | Do | Discovered by name from |
 |---|---|---|
-| a **notification channel** (Teams, Discord, email, PagerDuty, a ticket system) | a class with `name` and `send(report)`, built from a target string; `PLUGINS.notifiers.register("teams", TeamsNotifier)` | `--notify teams:env:TEAMS_URL`, `<PREFIX>_NOTIFY`; entry point group `cli_framework.notifiers` |
-| a **results store** (GCS, Azure Blob, an upload API) | implement `Sink`; `PLUGINS.sinks.register("gs", GcsSink)` | the destination URI's scheme; group `cli_framework.sinks` |
-| a **profile format** (Jsonnet, CUE, HCL) | a `text -> mapping` function; `PLUGINS.profile_loaders.register("jsonnet", load)` | the file suffix; group `cli_framework.profile_loaders` |
+| a **notification channel** (Teams, Discord, email, PagerDuty, a ticket system) | a class with `name` and `send(report)`, built from a target string; `PLUGINS.notifiers.register("teams", TeamsNotifier)` | `--notify teams:env:TEAMS_URL`, `<PREFIX>_NOTIFY`; entry point group `va.notifiers` |
+| a **results store** (GCS, Azure Blob, an upload API) | implement `Sink`; `PLUGINS.sinks.register("gs", GcsSink)` | the destination URI's scheme; group `va.sinks` |
+| a **profile format** (Jsonnet, CUE, HCL) | a `text -> mapping` function; `PLUGINS.profile_loaders.register("jsonnet", load)` | the file suffix; group `va.profile_loaders` |
 | **live reporting** (metrics, a database, a live table, an extra report file) | subclass `RunHooks`; add it to `Session(hooks=[*options.hooks(), yours])` | code |
 | a **case** | `@REGISTRY.case("group.what", needs=..., variants=..., tags=...)` | `-k`, `--tag`, `--exclude-tag` |
 | a **skip class** | `App(skip_classes=SkipClasses.default().extend(SkipClass(...)))` | `ctx.skip(name, reason)` |
@@ -143,7 +143,7 @@ What CI runs on every change, after `scripts/install.sh --dev`:
 
 ```sh
 .venv/bin/ruff check . && .venv/bin/ruff format --check .
-.venv/bin/mypy src/cli_framework examples/httpcheck/src examples/modelcheck/src
+.venv/bin/mypy src/va examples/httpcheck/src examples/modelcheck/src
 .venv/bin/python -m pytest -q        # tests/ and both examples' tests
 demo/local/run.sh                    # the local demo, end to end
 ```

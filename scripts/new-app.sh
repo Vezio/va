@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # new-app.sh: start a new tool, ready to develop, test, containerise and deploy.
 #
-#   scripts/new-app.sh NAME DEST            depend on this commit of cli-framework on GitHub
+#   scripts/new-app.sh NAME DEST            depend on this commit of VA on GitHub
 #   scripts/new-app.sh --local NAME DEST    depend on this checkout (for framework development)
 #
 # Creates DEST with a copy of the example tool renamed to NAME (package, command and NAME_*
@@ -27,11 +27,11 @@ if [ -z "$name" ] || [ -z "$dest" ]; then usage >&2; exit 2; fi
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
 upper="$(printf '%s' "$name" | tr '[:lower:]' '[:upper:]')"
-repo_url="https://github.com/Vezio/cli-framework"
+repo_url="https://github.com/Vezio/va"
 
-# --- which cli-framework the tool depends on
+# --- which VA the tool depends on
 if [ "$local_dep" = 1 ]; then
-  framework="cli-framework[s3,yaml] @ file://$root"
+  framework="va-framework[s3,yaml] @ file://$root"
   pinned="the checkout at $root"
 else
   commit="$(git -C "$root" rev-parse HEAD)"
@@ -42,7 +42,7 @@ else
   if [ -n "$(git -C "$root" status --porcelain -- src examples)" ]; then
     echo "new-app.sh: warning: uncommitted changes in src/ or examples/ are not in commit ${commit:0:12}" >&2
   fi
-  framework="cli-framework[s3,yaml] @ $repo_url/archive/$commit.tar.gz"
+  framework="va-framework[s3,yaml] @ $repo_url/archive/$commit.tar.gz"
   pinned="commit ${commit:0:12}"
 fi
 
@@ -69,9 +69,9 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "$name"
 dynamic = ["version"]
-description = "Checks for a deployed system, built on cli-framework"
+description = "Checks for a deployed system, built on VA"
 requires-python = ">=3.11"
-# cli-framework, pinned to one commit. To upgrade: change the commit, reinstall, rerun
+# VA, pinned to one commit. To upgrade: change the commit, reinstall, rerun
 # scripts/lock.sh and the tests.
 dependencies = ["$framework"]
 
@@ -92,7 +92,7 @@ line-length = 100
 target-version = "py311"
 
 [tool.ruff.lint]
-# T20 bans print(): output goes through cli-framework's logging (log.emit, get_logger).
+# T20 bans print(): output goes through VA's logging (log.emit, get_logger).
 select = ["E", "F", "W", "I", "T20", "B", "UP"]
 
 [tool.pytest.ini_options]
@@ -107,7 +107,7 @@ cat >"$dest/container/Containerfile" <<EOF
 FROM python:3.12-slim
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 HOME=/tmp
 WORKDIR /src
-# Every dependency, cli-framework included, pinned with hashes: a rebuild cannot drift, and a
+# Every dependency, VA included, pinned with hashes: a rebuild cannot drift, and a
 # tampered package fails the build.
 COPY container/requirements.lock ./
 RUN pip install --require-hashes -r requirements.lock
@@ -177,7 +177,7 @@ EOF
 cat >"$dest/README.md" <<EOF
 # $name
 
-\`$name\` verifies a deployed system. It is built on [cli-framework]($repo_url) ($pinned).
+\`$name\` verifies a deployed system. It is built on [VA]($repo_url) ($pinned).
 
 ## Getting started
 
@@ -206,9 +206,9 @@ GATEWAY_URL=https://... GATEWAY_TOKEN=... BACKEND_URL=https://... \\
 
 ## Documentation
 
-Writing checks, designing profiles, operation and deployment are covered by the cli-framework
+Writing checks, designing profiles, operation and deployment are covered by the VA
 guides: $repo_url/tree/main/docs
 EOF
 
-echo "created $dest: the tool $name, on cli-framework $pinned"
+echo "created $dest: the tool $name, on VA $pinned"
 echo "next: cd $dest && python3 -m venv .venv && .venv/bin/pip install -e '.[dev]' && .venv/bin/python -m pytest -q"

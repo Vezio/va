@@ -1,7 +1,7 @@
 """httpcheck's cases. Each module registers into REGISTRY on import; add a module, import it
 here, and prove the new case can fail against the fake server (tests/fake_server.py)."""
 
-from cli_framework.runner import CaseRegistry
+from va.runner import CaseRegistry
 
 REGISTRY = CaseRegistry()
 

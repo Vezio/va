@@ -3,12 +3,12 @@
 Point it at node_exporter's textfile collector directory (or any scraper that reads the
 format) and run health lands on the same dashboards and alerts as the infrastructure:
 
-    cli_framework_run_exit_code{tool,group}             the last run's exit code
-    cli_framework_run_timestamp_seconds{tool,group}     when it finished
-    cli_framework_run_duration_seconds{tool,group}
-    cli_framework_cases{tool,group,target,verdict}      cases by verdict
-    cli_framework_skips{tool,group,skip_class}          skips by class
-    cli_framework_run_published{tool,group}             1 if published (or not asked)
+    va_run_exit_code{tool,group}             the last run's exit code
+    va_run_timestamp_seconds{tool,group}     when it finished
+    va_run_duration_seconds{tool,group}
+    va_cases{tool,group,target,verdict}      cases by verdict
+    va_skips{tool,group,skip_class}          skips by class
+    va_run_published{tool,group}             1 if published (or not asked)
 
 The prefix is configurable: an app usually passes its own name.
 
@@ -41,9 +41,7 @@ def _seconds(stamp: str | None) -> float | None:
     return datetime.fromisoformat(stamp).timestamp() if stamp else None
 
 
-def render_metrics(
-    outcome: RunOutcome, records: list[ResultRecord], prefix: str = "cli_framework"
-) -> str:
+def render_metrics(outcome: RunOutcome, records: list[ResultRecord], prefix: str = "va") -> str:
     base = {"tool": outcome.tool, "group": outcome.group or ""}
     lines: list[str] = []
 
@@ -105,7 +103,7 @@ class MetricsFile(RunHooks):
     """Writes metrics.prom into the run directory (published with it) and atomically to
     `path` (e.g. the textfile collector directory), rewritten once publication is known."""
 
-    def __init__(self, path: Path | None = None, prefix: str = "cli_framework"):
+    def __init__(self, path: Path | None = None, prefix: str = "va"):
         self.path = path
         self.prefix = prefix
         self._outcome: RunOutcome | None = None

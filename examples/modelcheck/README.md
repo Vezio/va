@@ -1,6 +1,6 @@
 # modelcheck
 
-`modelcheck` is an example tool built on cli-framework. It verifies an OpenAI-compatible serving
+`modelcheck` is an example tool built on VA. It verifies an OpenAI-compatible serving
 stack layer by layer, and is the tool used by the [local demonstration](../../demo/README.md). It
 illustrates the framework's principal capabilities:
 

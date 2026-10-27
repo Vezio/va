@@ -7,9 +7,9 @@ import json
 from pathlib import Path
 
 import pytest
-from cli_framework import ExitCode
-from cli_framework.redact import REDACTOR
 from fake_stack import TOKEN, FakeStack
+from va import ExitCode
+from va.redact import REDACTOR
 
 from modelcheck.cli import build_app
 
@@ -126,7 +126,7 @@ def test_preflight_names_an_unreachable_layer(monkeypatch, tmp_path):
 
 
 def test_a_broken_profile_reports_every_problem_and_exits_2(tmp_path):
-    from cli_framework import ProfileError
+    from va import ProfileError
 
     from modelcheck.profile import load
 
@@ -156,7 +156,7 @@ def test_a_broken_profile_reports_every_problem_and_exits_2(tmp_path):
     ],
 )
 def test_yaml_implicit_types_are_reported(tmp_path, line, problem):
-    from cli_framework import ProfileError
+    from va import ProfileError
 
     from modelcheck.profile import load
 

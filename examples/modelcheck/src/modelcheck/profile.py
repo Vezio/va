@@ -23,8 +23,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from cli_framework import profile
-from cli_framework.profile import Problems
+from va import profile
+from va.profile import Problems
 
 CAPABILITIES = ("models", "chat", "stream", "auth")
 TOP_KEYS = ("name", "description", "model", "max_latency_ms", "targets")

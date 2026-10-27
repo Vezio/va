@@ -48,7 +48,7 @@ each exchange through the run directory, which scrubs secrets on the way:
 ```python
 import time
 
-from cli_framework import RunDir
+from va import RunDir
 
 
 class RecordingDbClient:
@@ -84,7 +84,7 @@ reported and the run goes on. The framework has `env_set`, `reachable` and
 `destination_writable`; add your own to the list your `run` command builds:
 
 ```python
-from cli_framework import Problem, Severity
+from va import Problem, Severity
 
 
 def model_is_served(name: str, url: str, model: str):
@@ -108,7 +108,7 @@ Hooks observe a run: stream results somewhere, emit metrics, write an extra file
 A hook that raises is logged and ignored, so a broken hook never changes a verdict.
 
 ```python
-from cli_framework import RunHooks
+from va import RunHooks
 
 
 class Metrics(RunHooks):
@@ -127,7 +127,7 @@ for:
         hooks=[*options.hooks(), Metrics()],
 ```
 
-The HTML, JUnit and metrics outputs are hooks too (`cli_framework.outputs`).
+The HTML, JUnit and metrics outputs are hooks too (`va.outputs`).
 
 ## A notification channel
 
@@ -136,9 +136,9 @@ A notifier has a `name`, is built from the text after the colon in its spec, and
 the page when a later run passes:
 
 ```python
-from cli_framework.notifiers import post_json
-from cli_framework.plugins import PLUGINS
-from cli_framework.report import RunReport
+from va.notifiers import post_json
+from va.plugins import PLUGINS
+from va.report import RunReport
 
 
 @PLUGINS.notifiers.register("pagerduty")
@@ -177,7 +177,7 @@ class for a URI scheme:
 ```python
 from pathlib import Path
 
-from cli_framework.plugins import PLUGINS
+from va.plugins import PLUGINS
 
 
 @PLUGINS.sinks.register("gs")
@@ -204,7 +204,7 @@ registered for a suffix:
 ```python
 import json5
 
-from cli_framework.plugins import PLUGINS
+from va.plugins import PLUGINS
 
 PLUGINS.profile_loaders.register("json5", json5.loads)
 ```
@@ -212,7 +212,7 @@ PLUGINS.profile_loaders.register("json5", json5.loads)
 ## A command
 
 ```python
-from cli_framework import App, ExitCode
+from va import App, ExitCode
 
 
 class ReplayCommand:
@@ -240,7 +240,7 @@ A skip says why a case did not run. Add a reason when none of the built-in ones 
 reuse one for a different reason:
 
 ```python
-from cli_framework import App, SkipClass, SkipClasses
+from va import App, SkipClass, SkipClasses
 
 app = App("mytool", version="1.0", skip_classes=SkipClasses.default().extend(
     SkipClass("requires_gpu", "needs a GPU node this cluster does not have"),
@@ -261,13 +261,13 @@ A plugin can live in its own package and be found without being imported, throug
 point. In the plugin's `pyproject.toml`:
 
 ```toml
-[project.entry-points."cli_framework.notifiers"]
+[project.entry-points."va.notifiers"]
 pagerduty = "mytool_pagerduty:PagerDutyNotifier"
 
-[project.entry-points."cli_framework.sinks"]
+[project.entry-points."va.sinks"]
 gs = "mytool_gcs:GcsSink"
 ```
 
 Install it next to your tool, and `--notify pagerduty:...` works. The groups are
-`cli_framework.notifiers`, `cli_framework.sinks` and `cli_framework.profile_loaders`. A name that
+`va.notifiers`, `va.sinks` and `va.profile_loaders`. A name that
 is already registered is not replaced.

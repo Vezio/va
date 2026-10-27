@@ -1,6 +1,6 @@
 """One logging system, two streams, redacted at the handler.
 
-Nothing in an app built on cli_framework calls `print` (ruff rule T20 enforces it):
+Nothing in an app built on va calls `print` (ruff rule T20 enforces it):
 
 - **diagnostics** go to stderr under `--log-level`, through `get_logger(...)`;
 - **primary output** (a report, a table, a value a script pipes on) goes to stdout through
@@ -29,13 +29,13 @@ from typing import TextIO
 
 from .redact import REDACTOR, Redactor
 
-ROOT = "cli_framework"
-OUTPUT = "cli_framework.output"
+ROOT = "va"
+OUTPUT = "va.output"
 
 
 def get_logger(name: str) -> logging.Logger:
     """A diagnostics logger. A dotted name ("mytool.cases") is used as is; a bare name
-    ("publish") goes under cli_framework's tree. `configure` gives both trees the same handlers."""
+    ("publish") goes under va's tree. `configure` gives both trees the same handlers."""
     return logging.getLogger(name if "." in name or name == ROOT else f"{ROOT}.{name}")
 
 
@@ -184,7 +184,7 @@ def configure(
     stdout: TextIO | None = None,
 ) -> LogSetup:
     """Install both streams. Call once, from the CLI, before anything logs. `app` is the
-    app's own logger tree; cli_framework's tree gets the same handlers."""
+    app's own logger tree; va's tree gets the same handlers."""
     setup = LogSetup(tuple(dict.fromkeys((ROOT, app))), redactor)
     for name in setup.trees:
         tree = logging.getLogger(name)

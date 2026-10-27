@@ -10,9 +10,9 @@ import sys
 from pathlib import Path
 
 import pytest
-from cli_framework import ExitCode
-from cli_framework.redact import REDACTOR
 from fake_server import FakeService
+from va import ExitCode
+from va.redact import REDACTOR
 
 from httpcheck.cli import build_app
 
