@@ -3,8 +3,12 @@
 # to the bucket under <group>/<run id>/, with the manifest written last, and compared with
 # earlier nightly runs of the same group.
 #
+# Scheduled runs are skipped until the repository variable LIVE_RUN_ENABLED is set to "true", so
+# a repository without a configured target does not fail every night. Manual runs always start.
+#
 # Configure in the repository settings:
-#   variables: RESULTS_URI (s3://bucket/prefix), GROUP, AWS_ENDPOINT_URL_S3 (optional),
+#   variables: LIVE_RUN_ENABLED ("true" to enable scheduled runs),
+#              RESULTS_URI (s3://bucket/prefix), GROUP, AWS_ENDPOINT_URL_S3 (optional),
 #              NOTIFY (notifier specs, e.g. slack:env:SLACK_WEBHOOK or webhook:env:ALERTS_WEBHOOK)
 #   secrets:   AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, SLACK_WEBHOOK / ALERTS_WEBHOOK (whichever
 #              NOTIFY names), and the target variables the profile names (e.g. GATEWAY_URL)
@@ -27,6 +31,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   run:
+    if: github.event_name == 'workflow_dispatch' || vars.LIVE_RUN_ENABLED == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
@@ -43,8 +48,8 @@ jobs:
       GATEWAY_TOKEN: ${{ secrets.GATEWAY_TOKEN }}
       BACKEND_URL: ${{ secrets.BACKEND_URL }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - run: pip install ".[s3,yaml]" ./examples/httpcheck

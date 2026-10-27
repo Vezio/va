@@ -111,12 +111,13 @@ Jobs are worth an alert. The exit code says why ([exit codes](usage.md#exit-code
 | Workflow | When | What |
 |---|---|---|
 | `tests.yaml` (your tool) / `offline-tests.yaml` (this repository) | every push and pull request | tests and lint; here also types, the demo, manifests, shellcheck and the image |
-| `live-run.yaml` (this repository) | nightly, and on demand | runs `job` against a deployed system, publishes, compares with earlier nightly runs, writes the summary on the run page, explains a red exit code |
+| `live-run.yaml` (this repository) | nightly once `LIVE_RUN_ENABLED` is `true`, and on demand | runs `job` against a deployed system, publishes, compares with earlier nightly runs, writes the summary on the run page, explains a red exit code |
 | `kind-demo.yaml` (this repository) | pull requests touching deployment, and on demand | the kind demo and its checks |
 
 `live-run.yaml` runs the example tool; to use it for yours, change the install step and the
 tool's name, and set its repository variables (`RESULTS_URI`, `GROUP`, `NOTIFY`) and secrets
-(storage keys, notifier URLs, your targets' variables).
+(storage keys, notifier URLs, your targets' variables). Scheduled runs are skipped until the
+repository variable `LIVE_RUN_ENABLED` is set to `true`; manual runs always start.
 
 ## Storage and credentials
 
