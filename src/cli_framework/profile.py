@@ -22,6 +22,7 @@ another (Jsonnet, CUE, HCL) is a loader registered for its suffix.
 
 from __future__ import annotations
 
+import difflib
 import hashlib
 import json
 import os
@@ -137,6 +138,28 @@ class Problems:
             return None
         if not isinstance(value, str) or not self.ENV_NAME.match(value):
             self.add(path, "must name an environment variable (UPPER_SNAKE), not hold a value")
+            return None
+        return value
+
+    def unknown_keys(self, data: Any, allowed: Collection[str], *, at: str = "") -> None:
+        """Report keys the schema does not define, with the closest known key. A misspelled key
+        is otherwise silently ignored, and the profile declares less than its author meant."""
+        if not isinstance(data, Mapping):
+            return
+        for key in data:
+            if key in allowed:
+                continue
+            close = difflib.get_close_matches(str(key), list(allowed), n=1)
+            hint = f"; did you mean {close[0]!r}?" if close else ""
+            self.add(f"{at}.{key}" if at else str(key), f"is not a known key{hint}")
+
+    def int_range(self, value: Any, low: int, high: int, path: str) -> int | None:
+        if value is None:
+            return None
+        if self.check_type(value, int, path) is None:
+            return None
+        if not low <= value <= high:
+            self.add(path, f"must be between {low} and {high}, not {value}")
             return None
         return value
 

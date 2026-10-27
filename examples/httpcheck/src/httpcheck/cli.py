@@ -116,8 +116,12 @@ class ProfileCommand:
     name, help, passthrough = "profile", "validate or show a profile, offline", False
 
     def add_arguments(self, parser: argparse.ArgumentParser, app: App) -> None:
-        parser.add_argument("action", choices=("validate", "show"))
-        parser.add_argument("profile", type=Path)
+        parser.add_argument(
+            "action",
+            choices=("validate", "show"),
+            help="validate: report every problem; show: what would run or skip, per target",
+        )
+        parser.add_argument("profile", type=Path, help="the profile file")
 
     def run(self, args: argparse.Namespace, app: App) -> int:
         profile = load(args.profile)

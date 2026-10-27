@@ -229,5 +229,4 @@ secrets.env
 
 # the kind demo's own kubeconfig
 demo/kind/.kubeconfig
-demo/local/runs/
-demo/local/results/
+demo/local/out/

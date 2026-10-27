@@ -20,8 +20,9 @@ jobs:
           python-version: ${{ matrix.python }}
       - run: scripts/install.sh --dev
       - run: .venv/bin/ruff check . && .venv/bin/ruff format --check .
-      - run: .venv/bin/mypy src/cli_framework
-      - run: .venv/bin/python -m pytest tests examples/httpcheck/tests -q
+      - run: .venv/bin/mypy src/cli_framework examples/httpcheck/src examples/modelcheck/src
+      - run: .venv/bin/python -m pytest -q   # tests/ and both examples (pyproject testpaths)
+      - run: demo/local/run.sh
 
   deploy:
     runs-on: ubuntu-latest

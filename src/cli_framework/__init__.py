@@ -5,7 +5,7 @@ shaped this way, and docs/architecture.md for the extension points.
 The names below are the public API; everything else is reachable from its module.
 """
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 from .cli import App, Command, UsageError, run_app  # noqa: E402
 from .commands import RunOptions, add_run_arguments  # noqa: E402

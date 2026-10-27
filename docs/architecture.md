@@ -1,7 +1,7 @@
 # Architecture
 
-How the code is laid out. For adding plugins, see [Extending](extending.md); for why it is
-shaped this way, [Design](design.md).
+How the code is laid out, for people changing the framework or reading it to extend it well.
+To extend it, see [Extending](extending.md); for why it is shaped this way, [Design](design.md).
 
 ## A run, end to end
 
@@ -112,7 +112,7 @@ Each is additive: no cli-framework change, no fork.
 | a **notification channel** (Teams, Discord, email, PagerDuty, a ticket system) | a class with `name` and `send(report)`, built from a target string; `PLUGINS.notifiers.register("teams", TeamsNotifier)` | `--notify teams:env:TEAMS_URL`, `<PREFIX>_NOTIFY`; entry point group `cli_framework.notifiers` |
 | a **results store** (GCS, Azure Blob, an upload API) | implement `Sink`; `PLUGINS.sinks.register("gs", GcsSink)` | the destination URI's scheme; group `cli_framework.sinks` |
 | a **profile format** (Jsonnet, CUE, HCL) | a `text -> mapping` function; `PLUGINS.profile_loaders.register("jsonnet", load)` | the file suffix; group `cli_framework.profile_loaders` |
-| **live reporting** (metrics, a database, a live table, an extra report file) | subclass `RunHooks`; pass it in `Session(hooks=...)` | code |
+| **live reporting** (metrics, a database, a live table, an extra report file) | subclass `RunHooks`; add it to `Session(hooks=[*options.hooks(), yours])` | code |
 | a **case** | `@REGISTRY.case("group.what", needs=..., variants=..., tags=...)` | `-k`, `--tag`, `--exclude-tag` |
 | a **skip class** | `App(skip_classes=SkipClasses.default().extend(SkipClass(...)))` | `ctx.skip(name, reason)` |
 | a **preflight check** | a callable returning `Problem`s | `Session(checks=...)` |
@@ -124,20 +124,28 @@ A notifier spec is `<kind>:<target>`; `env:NAME` reads the target from a variabl
 registers it as a secret. Channels are independent: one failing does not stop the others, and
 a failed delivery turns an otherwise passing run into exit 5.
 
-## An app (`examples/httpcheck/`)
+## A tool (`examples/modelcheck/`, `examples/httpcheck/`)
+
+Both examples have the same shape, which `scripts/new-app.sh` copies:
 
 | Module | Responsibility |
 |---|---|
-| `profile.py` | the app's typed profile, validated with `Problems` |
+| `profile.py` | the tool's typed profile, validated with `Problems` ([Profiles](profiles.md)) |
 | `client.py` | a recording client for the protocol under test (here HTTP) |
-| `cases/` | one module per group of cases, registered into `REGISTRY` |
-| `cli.py` | the app's `run` (builds a `Session` from `RunOptions`) and `profile` commands, plus the built-ins |
-| `tests/fake_server.py` | a real local server with injectable defects |
+| `cases/` | one module per group of cases, registered into `REGISTRY` by being imported in `cases/__init__.py` |
+| `cli.py` | the tool's `run` (builds a `Session` from `RunOptions`) and `profile` commands, plus the built-ins |
+| `tests/fake_*.py` | a real local server with switchable defects: every case is proven to fail against one |
 
 ## Testing
 
+What CI runs on every change, after `scripts/install.sh --dev`:
+
 ```sh
-.venv/bin/python -m pytest tests examples/httpcheck/tests -q
 .venv/bin/ruff check . && .venv/bin/ruff format --check .
-.venv/bin/mypy src/cli-framework
+.venv/bin/mypy src/cli_framework examples/httpcheck/src examples/modelcheck/src
+.venv/bin/python -m pytest -q        # tests/ and both examples' tests
+demo/local/run.sh                    # the local demo, end to end
 ```
+
+CI also renders the Kubernetes manifests, runs shellcheck on every script and builds the image;
+`kind-demo.yaml` runs the kind demo and its checks.

@@ -23,8 +23,11 @@ from .redact import REDACTOR, Redactor
 
 
 def new_run_id() -> str:
-    """Sortable, unique, and safe as a path segment and in a Kubernetes name."""
-    stamp = datetime.now(UTC).strftime("%Y-%m-%dT%H-%M-%SZ")
+    """Unique, safe as a path segment, and sortable by start time to the millisecond, e.g.
+    2026-10-27T02-08-44-123Z-ab12: readers take the last of a sorted list as the latest run, so
+    two runs started in the same second must still sort in order."""
+    now = datetime.now(UTC)
+    stamp = f"{now:%Y-%m-%dT%H-%M-%S}-{now.microsecond // 1000:03d}Z"
     return f"{stamp}-{uuid.uuid4().hex[:4]}"
 
 

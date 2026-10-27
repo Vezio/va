@@ -72,7 +72,17 @@ class ProgressLog(RunHooks):
     """One diagnostic line per case: the default progress display."""
 
     def on_start(self, run, cases, targets) -> None:
-        log.info("run %s: %d case(s) x %d target(s)", run.run_id, len(cases), len(targets))
+        planned = sum(len(c.variants) for c in cases) * len(targets)
+        log.info(
+            "run %s: %d %s (%d %s x %d %s)",
+            run.run_id,
+            planned,
+            "check" if planned == 1 else "checks",
+            len(cases),
+            "case" if len(cases) == 1 else "cases",
+            len(targets),
+            "target" if len(targets) == 1 else "targets",
+        )
 
     def on_result(self, run, record) -> None:
         variant = f"[{record.variant}]" if record.variant else ""

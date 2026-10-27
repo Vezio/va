@@ -12,10 +12,9 @@ from pathlib import Path
 import pytest
 from cli_framework import ExitCode
 from cli_framework.redact import REDACTOR
+from fake_server import FakeService
 
 from httpcheck.cli import build_app
-
-from .fake_server import FakeService
 
 PROFILE = """
 name = "fake"
@@ -249,3 +248,29 @@ def test_bad_opt_in_values_are_usage_errors(service, profile, tmp_path, flag):
     code, run_dir = run(profile, tmp_path, *flag)
     assert code == ExitCode.USAGE
     assert not run_dir.exists(), "a usage error must not leave a run directory behind"
+
+
+def test_job_gives_its_run_a_shorter_budget_than_its_own(service, profile, tmp_path):
+    """The run stops starting cases --grace seconds before the job would stop it, so it ends
+    on its own and writes its outcome; the environment's budget does not reach the child."""
+    env = dict(os.environ, HTTPCHECK_RUN_BUDGET="999")
+    done = subprocess.run(
+        [
+            str(Path(sys.executable).parent / "httpcheck"),
+            "job",
+            "--work-dir",
+            str(tmp_path / "w"),
+            "--budget",
+            "100",
+            "--grace",
+            "30",
+            "--profile",
+            str(profile),
+        ],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    assert done.returncode == ExitCode.OK, done.stderr
+    assert "--budget 70" in done.stderr  # 100 - 30, logged with the child's command line

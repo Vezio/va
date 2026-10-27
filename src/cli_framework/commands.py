@@ -71,18 +71,26 @@ def _float_setting(app: App, key: Key, default: float | None) -> float | None:
         raise UsageError(str(exc)) from exc
 
 
-def add_destination_arguments(parser: Arguments, app: App) -> None:
+def add_destination_arguments(parser: Arguments, app: App, *, reading: bool = False) -> None:
+    """--remote-output and --group. `reading` words them for commands that read the archive."""
     s = app.settings
     parser.add_argument(
         "--remote-output",
+        metavar="URI",
         default=s.get(Key.RESULTS_URI),
-        help=f"publish to this URI: file:///path, s3://bucket/prefix or a plugin "
-        f"scheme (env {s.name(Key.RESULTS_URI)}); unset keeps results local",
+        help=(
+            "the archive of published runs to read"
+            if reading
+            else "publish the run here: file:///path, s3://bucket/prefix or a plugin scheme; "
+            "unset keeps results local"
+        )
+        + f" (env {s.name(Key.RESULTS_URI)})",
     )
     parser.add_argument(
         "--group",
+        metavar="NAME",
         default=s.get(Key.GROUP),
-        help=f"archive partition, e.g. the profile name (env {s.name(Key.GROUP)})",
+        help=f"archive partition: runs are compared within a group (env {s.name(Key.GROUP)})",
     )
 
 
@@ -91,31 +99,49 @@ def add_notify_arguments(parser: Arguments, app: App) -> None:
     parser.add_argument(
         "--notify",
         action="append",
-        default=s.get_list(Key.NOTIFY),
+        default=None,
         metavar="KIND:TARGET",
-        help="notifier spec, repeatable: slack:env:VAR, webhook:URL, exec:CMD, "
-        f"file:PATH, log: (env {s.name(Key.NOTIFY)}, comma-separated)",
+        help="send the report here (repeatable): slack:env:VAR, webhook:URL, exec:CMD, "
+        f"file:PATH or log:. Replaces {s.name(Key.NOTIFY)} (comma-separated)",
     )
 
 
-def add_baseline_arguments(parser: Arguments, app: App) -> None:
-    parser.add_argument(
-        "--compare",
-        action="store_true",
-        help="compare with earlier published runs before publishing",
-    )
+def notify_specs(args: argparse.Namespace, app: App) -> list[str]:
+    """The notifier specs: --notify when given, else the environment's."""
+    return list(args.notify) if args.notify else app.settings.get_list(Key.NOTIFY)
+
+
+def add_baseline_arguments(parser: Arguments, app: App, *, switch: bool = True) -> None:
+    """The comparison flags. `switch` adds --compare (for commands where comparing is optional)."""
+    s = app.settings
+    if switch:
+        parser.add_argument(
+            "--compare",
+            action="store_true",
+            help="compare with earlier published runs before publishing (needs --remote-output)",
+        )
     parser.add_argument(
         "--compare-window",
         type=int,
+        metavar="N",
         default=1,
-        help="earlier runs that must agree before a change is a regression",
+        help="how many earlier runs must all have passed before a failure is a regression; "
+        "when they disagree the case is reported as flaky (default 1)",
     )
+    baseline_label = s.get(Key.BASELINE_LABEL, "trigger=nightly")
     parser.add_argument(
         "--baseline-label",
-        default=app.settings.get(Key.BASELINE_LABEL, "trigger=nightly"),
-        help="only runs with this KEY=VALUE label are baselines",
+        metavar="KEY=VALUE",
+        default=baseline_label,
+        help=f"only runs carrying this label are baselines; empty for any run (default "
+        f"{baseline_label}, env {s.name(Key.BASELINE_LABEL)})",
     )
-    parser.add_argument("--baseline", default=None, help="one run id to compare with instead")
+    parser.add_argument(
+        "--baseline",
+        metavar="RUN_ID",
+        default=None,
+        help="compare with this one run instead",
+    )
 
 
 def baseline_from(args: argparse.Namespace) -> Baseline | None:
@@ -134,62 +160,68 @@ def add_run_arguments(parser: argparse.ArgumentParser, app: App) -> None:
     out.add_argument(
         "--work-dir",
         type=Path,
+        metavar="DIR",
         default=Path(s.get(Key.WORK_DIR) or "runs"),
-        help=f"where run directories are created (env {s.name(Key.WORK_DIR)})",
+        help=f"where run directories are created (default runs, env {s.name(Key.WORK_DIR)})",
     )
     out.add_argument(
         "--run-dir",
         type=Path,
+        metavar="DIR",
         default=None,
-        help="the exact run directory to create (set by `job`)",
+        help="create the run directory exactly here (`job` sets this)",
     )
     add_destination_arguments(out, app)
     out.add_argument(
         "--summary",
         type=Path,
+        metavar="FILE",
         default=None,
-        help="append the Markdown summary here (e.g. $GITHUB_STEP_SUMMARY)",
+        help="also append the Markdown summary to FILE, e.g. $GITHUB_STEP_SUMMARY",
     )
     out.add_argument(
         "--label",
         action="append",
         default=[],
         metavar="KEY=VALUE",
-        help="label the run, e.g. trigger=nightly (repeatable)",
+        help="label the run (repeatable); trigger=nightly marks a baseline for comparisons",
     )
     out.add_argument(
         "--link",
         action="append",
         default=[],
         metavar="NAME=URL",
-        help="a link for the report, e.g. ci=https://... (repeatable)",
+        help="show a link in the report and notifications, e.g. ci=https://... (repeatable)",
     )
     add_notify_arguments(out, app)
-    add_baseline_arguments(parser.add_argument_group("comparison"), app)
-    add_execution_arguments(parser.add_argument_group("execution (opt-in)"), app)
-    add_output_arguments(parser.add_argument_group("reports (opt-in)"), app)
     sel = parser.add_argument_group("selection")
     sel.add_argument(
         "-k",
         dest="patterns",
         action="append",
         default=[],
-        help="run cases whose id contains this (repeatable)",
+        metavar="TEXT",
+        help="run only cases whose id contains TEXT (repeatable: any may match)",
     )
     sel.add_argument(
         "--tag",
         dest="tags",
         action="append",
         default=[],
+        metavar="TAG",
         help="run only cases with this tag (repeatable: all must match)",
     )
-    sel.add_argument("--exclude-tag", dest="exclude_tags", action="append", default=[])
     sel.add_argument(
-        "--budget",
-        type=float,
-        default=None,
-        help=f"seconds after which no new case starts (env {s.name(Key.RUN_BUDGET)})",
+        "--exclude-tag",
+        dest="exclude_tags",
+        action="append",
+        default=[],
+        metavar="TAG",
+        help="skip cases with this tag (repeatable)",
     )
+    add_baseline_arguments(parser.add_argument_group("comparison"), app)
+    add_execution_arguments(parser.add_argument_group("execution"), app)
+    add_output_arguments(parser.add_argument_group("reports (opt-in)"), app)
 
 
 def _int_setting(app: App, key: Key, default: int | None) -> int | None:
@@ -200,21 +232,31 @@ def _int_setting(app: App, key: Key, default: int | None) -> int | None:
 
 
 def add_execution_arguments(parser: Arguments, app: App) -> None:
-    """Opt-in execution controls; the defaults run one case at a time with no timeout."""
+    """How cases run. The defaults: one at a time, no timeout, no budget."""
     s = app.settings
     parser.add_argument(
         "--workers",
         type=int,
+        metavar="N",
         default=None,
-        help=f"run cases concurrently on this many threads (env "
-        f"{s.name(Key.WORKERS)}; default 1). Cases marked exclusive run alone",
+        help=f"opt-in: run cases on N threads; cases marked exclusive still run alone "
+        f"(default 1, env {s.name(Key.WORKERS)})",
     )
     parser.add_argument(
         "--case-timeout",
         type=float,
+        metavar="SECONDS",
         default=None,
-        help=f"seconds before a case is abandoned and recorded as an error (env "
-        f"{s.name(Key.CASE_TIMEOUT)}; default none)",
+        help=f"opt-in: abandon a case after SECONDS and record it as an error "
+        f"(env {s.name(Key.CASE_TIMEOUT)})",
+    )
+    parser.add_argument(
+        "--budget",
+        type=float,
+        metavar="SECONDS",
+        default=None,
+        help=f"start no new case after SECONDS; the run ends as interrupted "
+        f"(env {s.name(Key.RUN_BUDGET)})",
     )
 
 
@@ -226,7 +268,7 @@ def add_output_arguments(parser: Arguments, app: App) -> None:
         const=True,
         default=None,
         metavar="PATH",
-        help="write report.html (and a copy to PATH if given)",
+        help="write report.html into the run (and a copy to PATH if given)",
     )
     parser.add_argument(
         "--junit",
@@ -234,14 +276,15 @@ def add_output_arguments(parser: Arguments, app: App) -> None:
         const=True,
         default=None,
         metavar="PATH",
-        help="write junit.xml for CI (and a copy to PATH if given)",
+        help="write junit.xml into the run, for CI (and a copy to PATH if given)",
     )
     parser.add_argument(
         "--metrics-file",
         type=Path,
+        metavar="PATH",
         default=app.settings.get(Key.METRICS_FILE),
-        help="write Prometheus metrics here, atomically (env "
-        f"{app.settings.name(Key.METRICS_FILE)})",
+        help="write Prometheus metrics to PATH, atomically, e.g. for node_exporter's textfile "
+        f"collector (env {app.settings.name(Key.METRICS_FILE)})",
     )
 
 
@@ -273,7 +316,7 @@ class RunOptions:
         directory behind."""
         labels = parse_labels(args.label)
         links = parse_labels(args.link)
-        notifiers = notifiers_from(args.notify)
+        notifiers = notifiers_from(notify_specs(args, app))
         workers = args.workers if args.workers is not None else _int_setting(app, Key.WORKERS, 1)
         workers = 1 if workers is None else workers
         if workers < 1:
@@ -327,9 +370,13 @@ class RunOptions:
 
 class PublishCommand:
     name, help, passthrough = "publish", "publish a finished run directory (manifest last)", False
+    description = (
+        "Publish a finished run directory to --remote-output, under <group>/<run id>/, with "
+        "MANIFEST.json uploaded last. Records the result in the run's outcome.json."
+    )
 
     def add_arguments(self, parser, app):
-        parser.add_argument("run_dir", type=Path)
+        parser.add_argument("run_dir", type=Path, help="the run directory to publish")
         add_destination_arguments(parser, app)
 
     def run(self, args, app) -> int:
@@ -347,12 +394,20 @@ class PublishCommand:
 
 class CompareCommand:
     name, help, passthrough = "compare", "compare a run with earlier published runs", False
+    description = (
+        "Compare a run directory with earlier runs published in the same group, and write "
+        "comparison.json and comparison.md into it."
+    )
 
     def add_arguments(self, parser, app):
-        parser.add_argument("run_dir", type=Path)
-        add_destination_arguments(parser, app)
-        add_baseline_arguments(parser, app)
-        parser.add_argument("--fail-on-regression", action="store_true")
+        parser.add_argument("run_dir", type=Path, help="the run directory to compare")
+        add_destination_arguments(parser, app, reading=True)
+        add_baseline_arguments(parser, app, switch=False)
+        parser.add_argument(
+            "--fail-on-regression",
+            action="store_true",
+            help="exit 1 when there is a regression (default: report it and exit 0)",
+        )
 
     def run(self, args, app) -> int:
         if not (args.remote_output and args.group):
@@ -368,13 +423,14 @@ class CompareCommand:
 
 class NotifyCommand:
     name, help, passthrough = "notify", "send a run's report through notifiers", False
+    description = "Send a finished run's report through one or more notifiers."
 
     def add_arguments(self, parser, app):
-        parser.add_argument("run_dir", type=Path)
+        parser.add_argument("run_dir", type=Path, help="the finished run directory")
         add_notify_arguments(parser, app)
 
     def run(self, args, app) -> int:
-        notifiers = notifiers_from(args.notify)
+        notifiers = notifiers_from(notify_specs(args, app))
         if not notifiers:
             raise UsageError("no notifier: give --notify KIND:TARGET")
         run = RunDir(args.run_dir.resolve())
@@ -396,30 +452,46 @@ class JobCommand:
     here, and the outcome says `crashed`."""
 
     name, help, passthrough = "job", "one unattended run: run, compare, publish, notify", True
+    description = (
+        "One unattended run, as a CronJob or CI runs it: `run` as a child process, then "
+        "compare, publish and notify, even if the run crashed. Arguments not listed here "
+        "(--profile, -k, --label, --html, ...) are passed through to `run`."
+    )
     OWNED = ("--run-dir", "--remote-output", "--work-dir", "--notify", "--compare", "--group")
 
     def add_arguments(self, parser, app):
         s = app.settings
-        parser.add_argument("--work-dir", type=Path, default=Path(s.get(Key.WORK_DIR) or "runs"))
+        parser.add_argument(
+            "--work-dir",
+            type=Path,
+            metavar="DIR",
+            default=Path(s.get(Key.WORK_DIR) or "runs"),
+            help=f"where the run directory is created (default runs, env {s.name(Key.WORK_DIR)})",
+        )
         add_destination_arguments(parser, app)
         parser.add_argument(
             "--fallback-output",
+            metavar="URI",
             default=s.get(Key.FALLBACK_URI),
-            help="file:///path used only when --remote-output is unusable here",
+            help="publish here instead when --remote-output cannot be used, e.g. no credentials "
+            f"(env {s.name(Key.FALLBACK_URI)})",
         )
         parser.add_argument(
             "--budget",
             type=float,
+            metavar="SECONDS",
             default=None,
-            help=f"seconds before the child is stopped (env "
-            f"{s.name(Key.RUN_BUDGET)}, default {DEFAULTS.job_budget_s:g}); keep it below the "
-            "Job's activeDeadlineSeconds",
+            help="stop the run after SECONDS; it starts no new case after SECONDS minus "
+            f"--grace (default {DEFAULTS.job_budget_s:g}, env {s.name(Key.RUN_BUDGET)}). Keep it "
+            "below the Kubernetes Job's activeDeadlineSeconds",
         )
         parser.add_argument(
             "--grace",
             type=float,
+            metavar="SECONDS",
             default=DEFAULTS.job_grace_s,
-            help="seconds between SIGTERM and SIGKILL for the child",
+            help=f"time the run has to finish after being stopped (default "
+            f"{DEFAULTS.job_grace_s:g})",
         )
         add_baseline_arguments(parser, app)
         add_notify_arguments(parser, app)
@@ -429,15 +501,28 @@ class JobCommand:
         owned = [a for a in passthrough if a.split("=", 1)[0] in self.OWNED]
         if owned:
             raise UsageError(f"{owned[0]} is set by `job` itself, not passed through to run")
-        notifiers = notifiers_from(args.notify)
+        notifiers = notifiers_from(notify_specs(args, app))
         destination = self._destination(args)
         budget = args.budget or _float_setting(app, Key.RUN_BUDGET, None) or DEFAULTS.job_budget_s
 
         run_path = (args.work_dir / new_run_id()).resolve()
-        child = [*app.child_argv("run"), "--run-dir", str(run_path), *passthrough]
+        # The run stops starting cases `grace` seconds before the job would stop it, so it ends
+        # on its own and still writes its outcome; the job only has to step in if it hangs.
+        child_budget = max(budget - args.grace, budget / 2)
+        child = [
+            *app.child_argv("run"),
+            "--run-dir",
+            str(run_path),
+            "--budget",
+            f"{child_budget:g}",
+            *passthrough,
+        ]
         # The job delivers; the child only runs. Its environment loses the delivery settings,
         # so it neither publishes nor notifies a second time.
-        delivery = {app.settings.name(k) for k in (Key.RESULTS_URI, Key.FALLBACK_URI, Key.NOTIFY)}
+        delivery = {
+            app.settings.name(k)
+            for k in (Key.RESULTS_URI, Key.FALLBACK_URI, Key.NOTIFY, Key.RUN_BUDGET)
+        }
         env = {k: v for k, v in os.environ.items() if k not in delivery}
         code = self._child(child, env, budget, args.grace)
 

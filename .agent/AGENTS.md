@@ -29,9 +29,9 @@ changing a primitive: each rule there exists because breaking it produced a wron
 ## Before you say it works
 
 ```sh
-.venv/bin/python -m pytest tests examples/httpcheck/tests -q
+.venv/bin/python -m pytest -q
 .venv/bin/ruff check . && .venv/bin/ruff format --check .
-.venv/bin/mypy src/cli-framework
+.venv/bin/mypy src/cli_framework examples/httpcheck/src examples/modelcheck/src
 ```
 
 A new case needs its defect in the fake server and a test proving the case fails against it,

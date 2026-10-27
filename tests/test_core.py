@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import logging
+import time
 from dataclasses import dataclass
 
 import pytest
@@ -477,3 +478,41 @@ def test_third_party_plugins_load_from_entry_points(monkeypatch):
     monkeypatch.setattr(plugins, "entry_points", lambda group: [Point()] if group == "g" else [])
     registry: PluginRegistry[str] = PluginRegistry("notifier", "g")
     assert registry.get("teams") == "the-teams-factory" and registry.names() == ["teams"]
+
+
+def test_notify_flag_replaces_the_environment(tmp_path):
+    from cli_framework.commands import notify_specs
+
+    app = App("t", version="0", settings=Settings("T", {"T_NOTIFY": "log:,file:/x"}))
+    parser = app.add_builtins().build_parser()
+    from_env = parser.parse_args(["notify", str(tmp_path)])
+    from_flag = parser.parse_args(["notify", str(tmp_path), "--notify", "log:"])
+    assert notify_specs(from_env, app) == ["log:", "file:/x"]
+    assert notify_specs(from_flag, app) == ["log:"]
+
+
+def test_compare_command_has_no_compare_switch():
+    parser = App("t", version="0").add_builtins().build_parser()
+    with pytest.raises(SystemExit):
+        parser.parse_args(["compare", "run", "--compare"])
+
+
+def test_problems_catch_misspelled_keys_and_ranges():
+    p = Problems()
+    p.unknown_keys({"name": 1, "capabilites": []}, {"name", "capabilities"}, at="targets[0]")
+    p.int_range(700, 100, 599, "targets[0].errors.unknown_model")
+    p.int_range(404, 100, 599, "ok")
+    assert p.items == [
+        "targets[0].capabilites: is not a known key; did you mean 'capabilities'?",
+        "targets[0].errors.unknown_model: must be between 100 and 599, not 700",
+    ]
+
+
+def test_run_ids_sort_in_start_order_within_a_second():
+    from cli_framework.rundir import new_run_id
+
+    ids = []
+    for _ in range(20):
+        ids.append(new_run_id())
+        time.sleep(0.002)
+    assert ids == sorted(ids)

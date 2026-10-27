@@ -32,7 +32,7 @@ import time
 import traceback
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Generic, Protocol, TypeVar
+from typing import Any, Generic, Protocol, TypeVar, cast
 
 from .evidence import CheckFailed, Journal
 from .hooks import HookChain, RunHooks
@@ -76,7 +76,7 @@ class Context(Generic[S, T]):
     With `workers > 1`, cases share `state` across threads: anything on it that a case mutates
     must be thread-safe."""
 
-    def __init__(self, run: RunDir, case_id: str, target: T, variant: str, state: S | None):
+    def __init__(self, run: RunDir, case_id: str, target: T, variant: str, state: S):
         self.run = run
         self.case_id = case_id
         self.target = target
@@ -310,7 +310,9 @@ class Runner(Generic[S]):
 
     def execute(self, unit: Unit) -> ResultRecord:
         case, target, variant = unit.case, unit.target, unit.variant
-        ctx: Context[S, Any] = Context(self.run, case.case_id, target, variant, self.state)
+        # A runner built without state hands cases None; an app that uses state always sets it.
+        state = cast(S, self.state)
+        ctx: Context[S, Any] = Context(self.run, case.case_id, target, variant, state)
         started = self.clock()
         skip_class: str | None = None
         reason = ""

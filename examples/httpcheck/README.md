@@ -1,10 +1,9 @@
 # httpcheck
 
-A complete tool built on cli-framework: it checks HTTP services against a profile. Read it as
-the reference for how a tool is put together, or copy it with `scripts/new-app.sh` to start
-your own.
-
-Try it with `demo/local/run.sh` from the repository root (see [demo/](../../demo/README.md)).
+The minimal example tool: it checks any HTTP service against a profile (health, content type,
+unknown paths, authentication). It is the template `scripts/new-app.sh` copies to start a new
+tool, and the tool the [Kubernetes demo](../../demo/README.md) deploys. For a fuller example, see
+[`modelcheck`](../modelcheck).
 
 | File | What it shows |
 |---|---|

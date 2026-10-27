@@ -1,6 +1,6 @@
 # Design
 
-The lessons cli-framework encodes, and why each exists. Every rule here guards against a confident
+The principles cli-framework encodes, and why each exists. Every rule here guards against a confident
 wrong answer, a lost run or a leaked key. Read this before changing a primitive; the code
 follows from it.
 
@@ -14,7 +14,7 @@ rollback). The same shell fits any deployed service.
 
 It tests; it does not deploy. Different apps vary the *checks* and the *commands*; the shell
 around them (exit codes, logs, evidence, publishing, scheduling) stays the same, and that
-shell is cli_framework.
+shell is cli-framework.
 
 Typical apps built on it:
 
@@ -81,7 +81,8 @@ Assertions **record what they observed before they decide**, on passes as well a
 (`ctx.check`, `ctx.require`, `ctx.fail`). A failure shows the value that caused it. A pass
 with no recorded checks is indistinguishable from a case that checked nothing, so the runner
 warns about it, and a failure whose checks all passed is flagged as contradicting itself.
-Every request/response a case makes goes to `exchanges.jsonl`.
+The examples' recording client also keeps every request and response in `exchanges.jsonl`; a
+client for another protocol should do the same.
 
 ## 6. Four outcomes, and skips that say what is missing
 
@@ -116,7 +117,8 @@ not see records from its child loggers, so a filter on the root logger silently 
 
 Redaction happens in three places: the log handlers, every run-file writer (a server can echo
 a credential inside a body), and notifications. Secrets enter through
-`redact.secret_from_env`, which registers them as they are read.
+`REDACTOR.secret_from_env`, or a notifier's `env:NAME` target, which register them as they are
+read.
 
 ## 10. Never mutate what you measure
 
@@ -129,7 +131,9 @@ separate, explicit adapter; it does not widen this one.
 ## 11. The unattended run outlives the run
 
 `job` runs `<app> run` as a **child process**, so if the run is OOM-killed or overruns its
-budget, the parent still records a `crashed` outcome, compares, publishes and notifies. The
+budget, the parent still records the outcome, compares, publishes and notifies. The run gets a
+budget shorter than the job's by the grace period, so it normally stops on its own and writes
+its outcome; the job only steps in when it hangs. The
 CronJob has `backoffLimit: 0` (a retried run hides a failure), an `activeDeadlineSeconds`
 above the budget plus publish time, a grace period for SIGTERM, and no service account token
 unless the run reads the cluster. One pod spec serves both the schedule and on-demand runs

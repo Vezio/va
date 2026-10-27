@@ -58,9 +58,12 @@ def load(path: Path) -> Profile:
             p.one_of(cap, CAPABILITIES, f"{at}.capabilities")
         target = Target(
             name=p.require(raw, "name", str, at=at) or f"target{i}",
+            # An invalid value is recorded as a problem; "" only fills the slot until
+            # raise_if_any reports it.
             base_url_env=p.env_name(
                 p.require(raw, "base_url_env", str, at=at), f"{at}.base_url_env"
-            ),
+            )
+            or "",
             key_env=p.env_name(p.optional(raw, "key_env", str, at=at), f"{at}.key_env"),
             capabilities=frozenset(caps),
             health_path=p.optional(raw, "health_path", str, "/health", at=at),

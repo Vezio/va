@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "modelcheck"
+dynamic = ["version"]
+description = "Example cli-framework tool: check an OpenAI-compatible serving stack, layer by layer"
+requires-python = ">=3.11"
+dependencies = ["cli-framework>=0.3"]
+
+[project.scripts]
+modelcheck = "modelcheck.cli:main"
+
+[tool.setuptools.dynamic]
+version = {attr = "modelcheck.__version__"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+extend = "../../pyproject.toml"

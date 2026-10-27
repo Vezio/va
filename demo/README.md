@@ -1,30 +1,62 @@
 # Demos
 
-Two ways to see cli-framework work, using the example tool `httpcheck`: one on your laptop in
-a minute, and one on a throwaway Kubernetes cluster that runs it the way production would.
+Two ways to see cli-framework work: on your laptop in a few seconds, and on a throwaway
+Kubernetes cluster that runs a tool the way production would.
 
-## Local: check a service, get a report
+## Local: find a bug, and the layer it is in
 
 ```sh
 demo/local/run.sh
 ```
 
-`httpcheck` checks a public HTTP echo service (httpbin.org) standing in for a deployed one:
+Needs only Python 3.11 or newer: no service, no network, no account. The script starts a small
+OpenAI-compatible serving stack on free local ports (an **engine**, and a **gateway** in front of
+it that checks an API key and forwards requests, like a real stack) and checks it with
+[`modelcheck`](../examples/modelcheck), the example tool built on the framework.
 
-| Case | Checks that the service... |
+The profile, [`stack.toml`](../examples/modelcheck/profiles/stack.toml), declares both layers and
+what a correct one does: the model it serves, the status for an unknown model, a latency budget
+per layer, and that only the gateway requires a key. Seven cases then run against each layer:
+
+| Case | Checks that the layer... |
 |---|---|
-| `health.status` | answers its health path with 200 |
-| `health.latency` | answers it within the profile's limit |
-| `api.json_content_type` | answers JSON, and says so in `Content-Type` |
-| `api.unknown_path[GET]`, `[POST]` | answers 404 for a path that cannot exist |
-| `auth.rejects_bad_key` | refuses a wrong key: **skipped** here, because the demo profile does not declare `auth`. A skip always says why; it never reads as a pass |
+| `models.lists_declared_model` | lists the declared model |
+| `chat.completion[user_only]`, `[with_system]` | answers with content and a valid finish reason, for two prompt shapes |
+| `chat.usage_adds_up` | reports token usage that adds up |
+| `chat.latency` | answers within its own declared budget (exclusive: never runs alongside another case) |
+| `stream.well_formed` | streams valid chunks, one finish reason, and ends with `data: [DONE]` |
+| `errors.unknown_model` | refuses an unknown model with its declared status, in a JSON error envelope |
+| `auth.rejects_bad_key` | refuses a wrong key: on the gateway; **skipped** on the engine, which does not declare `auth` |
 
-It writes a run directory under `demo/local/runs/` (open its `report.html`), publishes a copy
-to `demo/local/results/` with the manifest last, and prints a summary through the `log:`
-notifier. Point it at your own service with `DEMO_URL=http://localhost:8080 demo/local/run.sh`.
+The script runs twice:
 
-Files: [`local/profile.toml`](local/profile.toml) declares the target;
-[`local/run.sh`](local/run.sh) runs it.
+1. **Last night**: the stack is healthy. Every case passes (the engine's auth case is skipped,
+   and says why), and the run is published to `demo/local/out/archive/` as the nightly baseline.
+2. **Today**: the stack restarts with a gateway bug: it drops the `data: [DONE]` that ends every
+   stream, which leaves clients waiting. `stream.well_formed` fails on the gateway and passes on
+   the engine behind it, so the bug is in the gateway, and the comparison with last night lists
+   it as the one regression.
+
+```
+  case                             gateway   engine
+  ...
+  stream.well_formed               FAIL      pass
+
+  compared with last night:
+  regression: gateway stream.well_formed: pass -> fail
+```
+
+Open the `report.html` files the script points to: every case, with what it checked.
+`demo/local/out/` also has both run directories and the published archive.
+
+The fake stack can break in other ways too; each is a test of `modelcheck`
+(`examples/modelcheck/tests/`) and can be started by hand:
+
+```sh
+.venv/bin/python examples/modelcheck/tests/fake_stack.py --defect gateway_error_status
+GATEWAY_URL=http://127.0.0.1:8400 ENGINE_URL=http://127.0.0.1:8401 GATEWAY_TOKEN=demo-gateway-key \
+  .venv/bin/modelcheck run --profile examples/modelcheck/profiles/stack.toml
+```
 
 ## Kubernetes: the unattended setup on kind
 
@@ -34,6 +66,7 @@ demo/kind/test.sh     # about two minutes; asserts the production behaviours
 demo/kind/down.sh     # removes the cluster
 ```
 
+This demo uses `httpcheck`, the minimal example tool, against a small HTTP service.
 `up.sh` creates a local kind cluster, builds the runner image and deploys
 [`deploy/base`](../deploy/base), unchanged, with a demo overlay that adds:
 

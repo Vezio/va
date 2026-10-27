@@ -87,10 +87,19 @@ class App:
         shared = argparse.ArgumentParser(add_help=False)
         group = shared.add_argument_group("logging")
         group.add_argument(
-            "--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR"]
+            "--log-level",
+            default="INFO",
+            choices=["DEBUG", "INFO", "WARNING", "ERROR"],
+            help="diagnostics on stderr at this level and above (default INFO); "
+            "the run's own run.log always has DEBUG",
         )
         group.add_argument("-q", "--quiet", action="store_true", help="warnings and errors only")
-        group.add_argument("--log-format", default="text", choices=["text", "json"])
+        group.add_argument(
+            "--log-format",
+            default="text",
+            choices=["text", "json"],
+            help="json writes one object per diagnostic line, for log collectors",
+        )
         group.add_argument("--no-color", action="store_true", help="never emit colour")
         parser = argparse.ArgumentParser(
             prog=self.prog,
@@ -105,6 +114,7 @@ class App:
             child = sub.add_parser(
                 command.name,
                 help=command.help,
+                description=getattr(command, "description", None) or command.help,
                 parents=[shared],
                 allow_abbrev=False,
                 epilog=ExitCode.epilog(),
