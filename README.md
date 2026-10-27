@@ -30,7 +30,7 @@ log. This framework encodes the fixes once, so each new tool starts right:
 
 | | |
 |---|---|
-| **Blame is in the exit code** | `1` the target failed · `3` your environment is not ready · `4` the tool broke · `5` results were not delivered |
+| **Failures say whose they are** | the target, your environment, the tool, or delivery: CI can tell them apart without reading logs ([exit codes](docs/usage.md#exit-codes)) |
 | **Every verdict has evidence** | checks are recorded before deciding; every request and response is kept |
 | **Secrets never leak** | redacted in logs, files, reports and notifications |
 | **Runs are archived and compared** | published to `file://` or `s3://`; regressions, recoveries and flaky cases called out |
