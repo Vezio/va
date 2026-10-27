@@ -1,0 +1,30 @@
+# The Kubernetes path end to end, on a throwaway kind cluster: deploy/base with the demo
+# overlay, a triggered run published to an in-cluster S3 store, then the CronJob behaviours
+# (scheduling, no retries, exit codes, publication) asserted by demo/kind/test.sh.
+name: Kind demo
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "deploy/**"
+      - "demo/kind/**"
+      - "container/**"
+      - "src/**"
+      - "examples/**"
+permissions:
+  contents: read
+jobs:
+  kind:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install kind (if the runner image lacks it)
+        run: |
+          command -v kind && exit 0
+          curl -fsSLo kind https://kind.sigs.k8s.io/dl/v0.31.0/kind-linux-amd64
+          sudo install -m 0755 kind /usr/local/bin/kind
+      - run: demo/kind/up.sh
+      - run: demo/kind/test.sh
+      - if: always()
+        run: demo/kind/down.sh

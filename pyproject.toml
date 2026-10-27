@@ -3,11 +3,16 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "runkit"
+name = "cli-framework"
 dynamic = ["version"]
 description = "A skeleton for CLIs that test deployed systems: exit codes that separate blame, evidence for every verdict, redacted logs, run directories published to file:// or s3://, Kubernetes CronJobs and CI."
 authors = [{ name = "Tyler Vezio Rimaldi" }, { name = "Alberto Perdomo" }]
 requires-python = ">=3.11"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
 # Standard library only. Everything else is an extra, so a minimal install has nothing to pin.
 dependencies = []
 
@@ -21,10 +26,10 @@ dev = ["ruff==0.8.6", "pytest>=8", "PyYAML>=6", "mypy>=1.10", "moto[s3]>=5", "bo
 where = ["src"]
 
 [tool.setuptools.dynamic]
-version = {attr = "runkit.__version__"}
+version = {attr = "cli_framework.__version__"}
 
 [tool.setuptools.package-data]
-runkit = ["py.typed"]
+cli_framework = ["py.typed", "outputs/*.css"]
 
 [tool.ruff]
 line-length = 100
@@ -32,7 +37,7 @@ target-version = "py311"
 extend-exclude = ["examples/*/build"]
 
 [tool.ruff.lint]
-# T20 bans print(): all output goes through the logger tree (runkit.log).
+# T20 bans print(): all output goes through the logger tree (cli_framework.log).
 select = ["E", "F", "W", "I", "T20", "B", "UP"]
 
 [tool.mypy]

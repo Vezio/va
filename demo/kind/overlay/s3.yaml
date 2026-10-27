@@ -1,0 +1,54 @@
+# Where runs are published: an S3-compatible stand-in (moto's server mode), and a Job that
+# creates the bucket. In a real deployment this is your object store.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: s3
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: s3}
+  template:
+    metadata:
+      labels: {app: s3}
+    spec:
+      containers:
+        - name: moto
+          image: docker.io/motoserver/moto:5.2.4
+          ports: [{containerPort: 5000}]
+          readinessProbe:
+            tcpSocket: {port: 5000}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: s3
+spec:
+  selector: {app: s3}
+  ports: [{port: 5000, targetPort: 5000}]
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: create-bucket
+spec:
+  backoffLimit: 6
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: create-bucket
+          image: app
+          command: ["python", "-c"]
+          args:
+            - |
+              import os
+              import boto3
+              from botocore.config import Config
+              s3 = boto3.client("s3", endpoint_url=os.environ["AWS_ENDPOINT_URL_S3"],
+                                config=Config(s3={"addressing_style": "path"}))
+              s3.create_bucket(Bucket="results")
+              print("bucket results created")
+          envFrom:
+            - configMapRef: {name: app-settings}
+            - secretRef: {name: app-secrets}

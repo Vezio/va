@@ -1,0 +1,10 @@
+# A demo target anyone can reach: a public HTTP echo service stands in for a deployed one.
+#   demo/local/run.sh
+name = "demo"
+
+[[targets]]
+name = "httpbin"
+base_url_env = "DEMO_URL"
+capabilities = ["health", "json"]
+health_path = "/json"
+max_latency_ms = 3000

@@ -1,4 +1,4 @@
-"""runkit's own tests: no network beyond localhost, no cluster."""
+"""cli_framework's own tests: no network beyond localhost, no cluster."""
 
 from __future__ import annotations
 
@@ -8,28 +8,30 @@ from dataclasses import dataclass
 
 import pytest
 
-from runkit import kube, retry
-from runkit.cli import App, UsageError
-from runkit.compare import ChangeKind, compare
-from runkit.exit_codes import ExitCode, combine, label_of
-from runkit.hooks import RunHooks
-from runkit.log import configure, emit, get_logger
-from runkit.model import (
-    DEFAULT_SKIP_CLASSES,
+from cli_framework import kube, retry
+from cli_framework.cli import App, UsageError
+from cli_framework.compare import ChangeKind, compare
+from cli_framework.defaults import RetryPolicy
+from cli_framework.exit_codes import ExitCode, combine, label_of
+from cli_framework.hooks import RunHooks
+from cli_framework.layout import RunFile
+from cli_framework.log import configure, emit, get_logger
+from cli_framework.model import (
     Check,
     ResultRecord,
     RunOutcome,
     SkipClass,
+    SkipClasses,
     Verdict,
 )
-from runkit.plugins import PluginRegistry, UnknownPlugin
-from runkit.profile import LOADERS, Problems, ProfileError, load
-from runkit.publish import Archive, deliver
-from runkit.redact import REDACTOR, Redactor
-from runkit.rundir import MANIFEST, RunDir
-from runkit.runner import CaseRegistry, Runner, Selector
-from runkit.settings import Key, Settings
-from runkit.sinks import SINKS, FileSink, UnsupportedDestination, sink_for
+from cli_framework.plugins import PLUGINS, PluginRegistry, UnknownPlugin
+from cli_framework.profile import Problems, ProfileError, load
+from cli_framework.publish import Archive, deliver
+from cli_framework.redact import REDACTOR, Redactor
+from cli_framework.rundir import RunDir
+from cli_framework.runner import CaseRegistry, Runner, Selector
+from cli_framework.settings import Key, Settings
+from cli_framework.sinks import FileSink, UnsupportedDestination, sink_for
 
 
 @pytest.fixture(autouse=True)
@@ -123,8 +125,8 @@ def test_a_skip_needs_a_class_and_only_a_skip_has_one():
 
 
 def test_skip_classes_are_immutable_and_extended_by_copy():
-    extended = DEFAULT_SKIP_CLASSES.extend(SkipClass("requires_load", "needs a load generator"))
-    assert "requires_load" in extended and "requires_load" not in DEFAULT_SKIP_CLASSES
+    extended = SkipClasses.default().extend(SkipClass("requires_load", "needs a load generator"))
+    assert "requires_load" in extended and "requires_load" not in SkipClasses.default()
     with pytest.raises(ValueError):
         extended.extend(SkipClass("requires_load", "something else"))
 
@@ -138,7 +140,7 @@ def test_manifest_is_last_and_detects_tampering(tmp_path):
     run.write_json("outcome.json", {"note": "key hunter2-hunter2"})
     run.write_text("evidence/a/b.txt", "x")
     order = run.write_manifest()
-    assert order[-1] == MANIFEST and "evidence/a/b.txt" in order
+    assert order[-1] == RunFile.MANIFEST and "evidence/a/b.txt" in order
     assert "hunter2" not in run.file("outcome.json").read_text()
     assert run.verify_manifest() == []
     run.write_text("evidence/a/b.txt", "changed")
@@ -237,7 +239,7 @@ def test_publish_manifest_last_and_partial_runs_are_not_baselines(tmp_path, monk
         FileSink, "put", lambda self, local, key: (order.append(key), original(self, local, key))
     )
     publication = deliver(run, f"file://{archive}", "grp")
-    assert publication.delivered and order[-1].endswith(MANIFEST)
+    assert publication.delivered and order[-1].endswith(RunFile.MANIFEST)
     partial = archive / "grp" / "2099-partial"
     partial.mkdir(parents=True)
     (partial / "results.jsonl").write_text("{}\n")
@@ -289,7 +291,7 @@ def test_a_sink_plugin_is_one_registration(tmp_path):
         def location(self, key):
             return f"{self.uri}/{key}"
 
-    SINKS.register("mem", MemorySink, replace=True)
+    PLUGINS.sinks.register("mem", MemorySink, replace=True)
     run = RunDir.create(tmp_path)
     run.add_result(ResultRecord(run.run_id, "c", Verdict.PASS))
     assert deliver(run, "mem://x", "g").delivered
@@ -372,7 +374,7 @@ def test_retry_is_bounded_and_caps_retry_after():
         attempts.append(1)
         raise OSError("down")
 
-    policy = retry.RetryPolicy(attempts=3)
+    policy = RetryPolicy(attempts=3)
     with pytest.raises(OSError):
         retry.call(failing, what="x", policy=policy, sleep=lambda s: None)
     assert len(attempts) == 3
@@ -395,7 +397,7 @@ def test_problems_reports_every_path():
 
 
 def test_profile_format_is_a_plugin(tmp_path):
-    LOADERS.register(
+    PLUGINS.profile_loaders.register(
         "ini", lambda text: dict(line.split("=", 1) for line in text.splitlines()), replace=True
     )
     path = tmp_path / "p.ini"
@@ -470,7 +472,7 @@ def test_third_party_plugins_load_from_entry_points(monkeypatch):
         def load():
             return "the-teams-factory"
 
-    import runkit.plugins as plugins
+    import cli_framework.plugins as plugins
 
     monkeypatch.setattr(plugins, "entry_points", lambda group: [Point()] if group == "g" else [])
     registry: PluginRegistry[str] = PluginRegistry("notifier", "g")

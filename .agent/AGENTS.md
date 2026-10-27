@@ -1,7 +1,7 @@
 # Working in this repo
 
-`src/runkit/` is a library of primitives for CLIs that test deployed systems;
-`examples/httpcheck/` is a complete app built on it. Read [../DESIGN.md](../DESIGN.md) before
+`src/cli_framework/` is a library of primitives for CLIs that test deployed systems;
+`examples/httpcheck/` is a complete app built on it. Read [../docs/design.md](../docs/design.md) before
 changing a primitive: each rule there exists because breaking it produced a wrong answer.
 
 ## Hard rules
@@ -31,7 +31,7 @@ changing a primitive: each rule there exists because breaking it produced a wron
 ```sh
 .venv/bin/python -m pytest tests examples/httpcheck/tests -q
 .venv/bin/ruff check . && .venv/bin/ruff format --check .
-.venv/bin/mypy src/runkit
+.venv/bin/mypy src/cli-framework
 ```
 
 A new case needs its defect in the fake server and a test proving the case fails against it,

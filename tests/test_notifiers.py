@@ -9,11 +9,10 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import pytest
 
-from runkit.compare import compare
-from runkit.exit_codes import ExitCode
-from runkit.model import ResultRecord, RunOutcome, Verdict
-from runkit.notifiers import (
-    NOTIFIERS,
+from cli_framework.compare import compare
+from cli_framework.exit_codes import ExitCode
+from cli_framework.model import ResultRecord, RunOutcome, Verdict
+from cli_framework.notifiers import (
     NotifierError,
     SlackNotifier,
     WebhookNotifier,
@@ -21,9 +20,10 @@ from runkit.notifiers import (
     parse_spec,
     parse_specs,
 )
-from runkit.notifiers.slack import format_text
-from runkit.redact import REDACTOR
-from runkit.report import RunReport
+from cli_framework.notifiers.slack import format_text
+from cli_framework.plugins import PLUGINS
+from cli_framework.redact import REDACTOR
+from cli_framework.report import RunReport
 
 
 @pytest.fixture(autouse=True)
@@ -69,7 +69,7 @@ def test_report_is_one_source_for_every_channel():
     report = _report()
     assert report.headline == "FAILED" and report.comparison.regressions
     assert "health.status" in report.markdown() and "regression" in report.markdown()
-    assert report.to_dict()["schema"] == "runkit.report/1"
+    assert report.to_dict()["schema"] == "cli_framework.report/1"
 
 
 def test_webhook_posts_the_report_as_json(receiver):
@@ -126,7 +126,7 @@ def test_a_new_channel_is_one_registration():
         def send(self, report):
             sent.append((self.target, report.headline))
 
-    NOTIFIERS.register("pager", Pager, replace=True)
+    PLUGINS.notifiers.register("pager", Pager, replace=True)
     for notifier in parse_specs(["pager:team-a,log:"]):
         notifier.send(_report())
     assert sent == [("team-a", "FAILED")]

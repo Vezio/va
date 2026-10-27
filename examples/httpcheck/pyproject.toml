@@ -5,10 +5,10 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "httpcheck"
 dynamic = ["version"]
-description = "Example runkit app: check deployed HTTP services against a profile"
+description = "Example cli_framework app: check deployed HTTP services against a profile"
 requires-python = ">=3.11"
-# In a real app, pin runkit to a tag or commit: "runkit @ git+https://...@v0.1.0"
-dependencies = ["runkit>=0.2"]
+# In a real app, pin cli_framework to a tag or commit: "cli-framework @ git+https://...@v0.1.0"
+dependencies = ["cli-framework>=0.2"]
 
 [project.scripts]
 httpcheck = "httpcheck.cli:main"

@@ -18,9 +18,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
-      - run: ./install.sh --dev
+      - run: scripts/install.sh --dev
       - run: .venv/bin/ruff check . && .venv/bin/ruff format --check .
-      - run: .venv/bin/mypy src/runkit
+      - run: .venv/bin/mypy src/cli_framework
       - run: .venv/bin/python -m pytest tests examples/httpcheck/tests -q
 
   deploy:
@@ -32,9 +32,9 @@ jobs:
           kubectl kustomize deploy/base > /dev/null
           kubectl kustomize deploy/overlays/example > /dev/null
       - name: Scripts pass shellcheck
-        run: shellcheck deploy/trigger.sh scripts/*.sh install.sh
+        run: shellcheck deploy/trigger.sh scripts/*.sh
       - name: The runner image builds from the lock
         run: |
-          docker build -f Containerfile --build-arg GIT_SHA="$GITHUB_SHA" -t runner:ci .
+          docker build -f container/Containerfile --build-arg GIT_SHA="$GITHUB_SHA" -t runner:ci .
           docker run --rm runner:ci --version
           test "$(docker run --rm --entrypoint id runner:ci -u)" != 0

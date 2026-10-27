@@ -1,3 +1,0 @@
-# The runner image's third-party dependencies: runkit's runtime extras. Lock with scripts/lock.sh.
-boto3>=1.34
-PyYAML>=6

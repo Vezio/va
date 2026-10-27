@@ -1,6 +1,6 @@
 ---
 name: adding-a-case
-description: Use when adding or changing a case, a target capability, a skip class or a command in a runkit app
+description: Use when adding or changing a case, a target capability, a skip class or a command in a cli-framework app
 ---
 
 # Adding a case
@@ -22,7 +22,7 @@ description: Use when adding or changing a case, a target capability, a skip cla
 6. **Prove it fails.** Add the defect to `tests/fake_server.py` (`Defects`) and a parametrised
    row in the test that asserts `fail` with a not-ok check.
 7. **Skip honestly.** `ctx.skip(class, reason)` with a class from the app's `SkipClasses`; when
-   none fits, extend them in `App(skip_classes=DEFAULT_SKIP_CLASSES.extend(SkipClass(...)))`.
+   none fits, extend them in `App(skip_classes=SkipClasses.default().extend(SkipClass(...)))`.
    Never reuse one for another reason. An unknown class is recorded as an error.
 
 | Thought | Reality |

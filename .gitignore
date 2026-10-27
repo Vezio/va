@@ -219,10 +219,15 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
-# runkit
+# cli_framework
 runs/
 *.local.toml
 *.local.yaml
 *.local.json
 secrets.env
 .claude/
+
+# the kind demo's own kubeconfig
+demo/kind/.kubeconfig
+demo/local/runs/
+demo/local/results/

@@ -18,8 +18,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from runkit import profile
-from runkit.profile import Problems
+from cli_framework import profile
+from cli_framework.profile import Problems
 
 CAPABILITIES = ("health", "json", "auth")
 

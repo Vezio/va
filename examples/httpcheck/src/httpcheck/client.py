@@ -14,7 +14,7 @@ import urllib.request
 from dataclasses import dataclass
 from typing import Any
 
-from runkit.rundir import RunDir
+from cli_framework.rundir import RunDir
 
 
 @dataclass

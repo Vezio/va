@@ -10,8 +10,8 @@ import sys
 from pathlib import Path
 
 import pytest
-from runkit import ExitCode
-from runkit.redact import REDACTOR
+from cli_framework import ExitCode
+from cli_framework.redact import REDACTOR
 
 from httpcheck.cli import build_app
 

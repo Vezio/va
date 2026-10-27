@@ -1,0 +1,45 @@
+# The demo: deploy/base, unchanged, plus a target to test and an S3-compatible store to publish
+# to, all in one namespace of a local kind cluster. Every value here is demo-only.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: cli-framework-demo
+resources:
+  - namespace.yaml
+  - ../../../deploy/base
+  - target.yaml
+  - s3.yaml
+images:
+  - name: app
+    newName: localhost/httpcheck
+    newTag: demo
+patches:
+  # Every ten minutes, so the schedule is visible during the demo (production: nightly).
+  - target: {kind: CronJob, name: app}
+    patch: |-
+      - op: replace
+        path: /spec/schedule
+        value: "*/10 * * * *"
+generatorOptions:
+  disableNameSuffixHash: true
+configMapGenerator:
+  - name: app-profile
+    files:
+      - profile.toml
+  - name: app-settings
+    literals:
+      - HTTPCHECK_PROFILE=/etc/app/profile.toml
+      - HTTPCHECK_WORK_DIR=/work
+      - HTTPCHECK_RUN_BUDGET=300
+      - HTTPCHECK_GROUP=demo
+      - HTTPCHECK_RESULTS_URI=s3://results/nightly
+      - AWS_ENDPOINT_URL_S3=http://s3:5000
+      - AWS_DEFAULT_REGION=us-east-1
+      # The run report is POSTed here as JSON; the target's /anything accepts any request.
+      - HTTPCHECK_NOTIFY=webhook:http://target/anything
+      - TARGET_URL=http://target
+secretGenerator:
+  # Demo credentials for the in-cluster S3 stand-in, which accepts any key.
+  - name: app-secrets
+    literals:
+      - AWS_ACCESS_KEY_ID=demo-access-key
+      - AWS_SECRET_ACCESS_KEY=demo-secret-key

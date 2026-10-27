@@ -10,14 +10,14 @@ from dataclasses import dataclass
 
 import pytest
 
-from runkit.hooks import RunHooks
-from runkit.model import Check, ResultRecord, RunOutcome, Verdict
-from runkit.outputs import HtmlReport, JUnitReport, MetricsFile, render_html, render_junit
-from runkit.outputs.metrics import render_metrics
-from runkit.publish import Archive, deliver
-from runkit.redact import REDACTOR
-from runkit.rundir import RunDir
-from runkit.runner import BudgetExceeded, CaseRegistry, Runner
+from cli_framework.hooks import RunHooks
+from cli_framework.model import Check, ResultRecord, RunOutcome, Verdict
+from cli_framework.outputs import HtmlReport, JUnitReport, MetricsFile, render_html, render_junit
+from cli_framework.outputs.metrics import render_metrics
+from cli_framework.publish import Archive, deliver
+from cli_framework.redact import REDACTOR
+from cli_framework.rundir import RunDir
+from cli_framework.runner import BudgetExceeded, CaseRegistry, Runner
 
 
 @pytest.fixture(autouse=True)
@@ -220,7 +220,7 @@ def test_metrics_file_is_prometheus_text_and_atomic(tmp_path):
     assert "# TYPE mytool_run_duration_seconds gauge" in text
     assert not list(target.parent.glob(".tool.prom.*")), "temporary file left behind"
     assert run.file("metrics.prom").read_text() == text
-    assert render_metrics(outcome, run.results()).startswith("# HELP runkit_run_exit_code")
+    assert render_metrics(outcome, run.results()).startswith("# HELP cli_framework_run_exit_code")
 
 
 # ------------------------------------------------------------------ S3, against a mock
@@ -271,7 +271,7 @@ def test_s3_publish_manifest_last_and_archive_reads_back(s3, tmp_path):
 
 
 def test_s3_write_check_and_missing_bucket(s3, tmp_path):
-    from runkit.preflight import destination_writable
+    from cli_framework.preflight import destination_writable
 
     assert list(destination_writable("s3://results/p")()) == []
     problems = list(destination_writable("s3://no-such-bucket/p")())
