@@ -1,7 +1,7 @@
 """Framework for command-line tools that test deployed systems.
 
-The framework targets model-serving stacks first. It keeps the evidence of each run and
-classifies each failure by the party responsible for it. See docs/design.md for the design
+The framework keeps the evidence of each run and classifies each failure by the component and
+the party responsible for it. See docs/design.md for the design
 rationale and docs/architecture.md for the extension points.
 
 The names exported here form the public API. Other names are available from their modules.

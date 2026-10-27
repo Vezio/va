@@ -5,25 +5,56 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "va-framework"
 dynamic = ["version"]
-description = "A skeleton for CLIs that test deployed systems: exit codes that separate blame, evidence for every verdict, redacted logs, run directories published to file:// or s3://, Kubernetes CronJobs and CI."
+description = "A framework for building command-line tools that verify deployed systems, record evidence for every result and attribute each failure to the component responsible."
+readme = "README.md"
+keywords = [
+    "testing",
+    "verification",
+    "functional-testing",
+    "smoke-testing",
+    "conformance",
+    "regression",
+    "deployment",
+    "kubernetes",
+    "ci",
+    "observability",
+]
 authors = [{ name = "Tyler Vezio Rimaldi" }, { name = "Alberto Perdomo" }]
 requires-python = ">=3.11"
 classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "Operating System :: OS Independent",
+    "Topic :: Software Development :: Quality Assurance",
+    "Topic :: Software Development :: Testing",
+    "Topic :: System :: Monitoring",
+    "Topic :: System :: Systems Administration",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
 ]
-# Standard library only. Everything else is an extra, so a minimal install has nothing to pin.
-dependencies = ["PyYAML>=6"]   # profiles are YAML by default
+# PyYAML is the only required dependency; profiles are YAML by default. Other integrations are
+# optional extras.
+dependencies = ["PyYAML>=6"]
 
 [project.optional-dependencies]
-s3 = ["boto3>=1.34"]           # publishing to S3 or an S3-compatible store
-yaml = []                      # kept so existing pins of va-framework[yaml] still resolve
+# Publication to S3 or S3-compatible storage.
+s3 = ["boto3>=1.34"]
+# Retained so that existing requirements on va-framework[yaml] continue to resolve.
+yaml = []
 # Pin ruff exactly, and keep .pre-commit-config.yaml in sync with it.
 dev = ["ruff==0.8.6", "pytest>=8", "types-PyYAML", "mypy>=1.10", "moto[s3]>=5", "boto3>=1.34"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[project.urls]
+Homepage = "https://github.com/Vezio/va"
+Documentation = "https://github.com/Vezio/va/tree/main/docs"
+Changelog = "https://github.com/Vezio/va/blob/main/CHANGELOG.md"
+Issues = "https://github.com/Vezio/va/issues"
 
 [tool.setuptools.dynamic]
 version = {attr = "va.__version__"}
