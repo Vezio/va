@@ -10,8 +10,8 @@
 #
 # By default the tool depends on the commit this checkout is at, as a source archive from the
 # public repository: every machine and image build gets exactly that code, without git. The
-# commit must have been pushed. --local depends on this checkout's path instead, which works only
-# on this machine.
+# commit must have been pushed. --local installs this checkout in editable mode instead, so
+# framework changes reach the tool without a reinstall; it works only on this machine.
 set -euo pipefail
 
 usage() { sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//'; }
@@ -31,8 +31,11 @@ repo_url="https://github.com/Vezio/va"
 
 # --- which VA the tool depends on
 if [ "$local_dep" = 1 ]; then
-  framework="va-framework[s3,yaml] @ file://$root"
-  pinned="the checkout at $root"
+  # Not a file:// URL: pip caches the wheel it builds from one, and later installs reuse that
+  # stale copy over the checkout. The editable install below satisfies this requirement.
+  framework="va-framework[s3,yaml]"
+  pinned="the checkout at $root, installed in editable mode"
+  install=".venv/bin/pip install -e \"${root}[s3]\" -e \".[dev]\""
 else
   commit="$(git -C "$root" rev-parse HEAD)"
   if ! git -C "$root" branch -r --contains "$commit" 2>/dev/null | grep -q .; then
@@ -43,6 +46,7 @@ else
     echo "new-app.sh: warning: uncommitted changes in src/ or examples/ are not in commit ${commit:0:12}" >&2
   fi
   framework="va-framework[s3,yaml] @ $repo_url/archive/$commit.tar.gz"
+  install=".venv/bin/pip install -e \".[dev]\""
   pinned="commit ${commit:0:12}"
 fi
 
@@ -184,7 +188,7 @@ cat >"$dest/README.md" <<EOF
 Requirements: Python 3.11 or later.
 
 \`\`\`sh
-python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
+python3 -m venv .venv && $install
 .venv/bin/python -m pytest -q
 .venv/bin/$name profile show profiles/example.yaml
 GATEWAY_URL=https://... GATEWAY_TOKEN=... BACKEND_URL=https://... \\
@@ -211,4 +215,4 @@ guides: $repo_url/tree/main/docs
 EOF
 
 echo "created $dest: the tool $name, on VA $pinned"
-echo "next: cd $dest && python3 -m venv .venv && .venv/bin/pip install -e '.[dev]' && .venv/bin/python -m pytest -q"
+echo "next: cd $dest && python3 -m venv .venv && $install && .venv/bin/python -m pytest -q"

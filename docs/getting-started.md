@@ -26,7 +26,8 @@ python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
 `mytool` is your tool's name: a lowercase Python identifier. The tool depends on the exact
 commit of VA you ran `new-app.sh` from (see its `pyproject.toml`); that commit must be
 on GitHub. If you are changing the framework itself, `scripts/new-app.sh --local mytool
-../mytool` depends on your checkout instead.
+../mytool` installs your checkout in editable mode instead, so framework changes reach the tool
+without a reinstall; the install command it prints does both.
 
 You now have:
 

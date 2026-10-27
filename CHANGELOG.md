@@ -17,6 +17,8 @@ existing tool is marked **changed**.
   profiles needs a `kind`; layers in front of another name it in `behind`. Its fake stack has a
   router, and a router defect (`router_drops_usage`); the local demo now finds that one, and
   places it at the router.
+- `scripts/new-app.sh --local` installs the framework checkout in editable mode. It used to
+  depend on a `file://` URL, and pip reused a cached wheel of an older framework in its place.
 
 ## 0.4.0
 
