@@ -1,5 +1,8 @@
 # cli-framework (runkit)
 
+Built by Tyler Vezio Rimaldi ([@Vezio](https://github.com/Vezio)) and Alberto Perdomo
+([@albertoperdomo2](https://github.com/albertoperdomo2)).
+
 A skeleton for command-line tools that **test something already deployed**, keep the evidence,
 and run both by hand and unattended. It is built for model infrastructure testing and lifecycle
 management (inference engines, routers, gateways; new models, upgrades, rollouts) and works for
@@ -125,8 +128,3 @@ scripts/new-app.sh mytool ../mytool
 
 Then replace the profile schema (`profile.py`), the cases (`cases/`) and the client with your
 own, keep the fake-server tests, and prove each new case fails against its defect.
-
-## Authors
-
-Built by Tyler Vezio Rimaldi ([@Vezio](https://github.com/Vezio)) and Alberto Perdomo
-([@albertoperdomo2](https://github.com/albertoperdomo2)).
