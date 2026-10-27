@@ -1,0 +1,36 @@
+# An overlay with placeholders. Copy it next to the system's manifests and fill it in.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: <namespace>
+resources:
+  - ../../base
+images:
+  - name: app
+    newName: <registry>/<org>/httpcheck
+    newTag: <git-sha>
+patches:
+  - target: {kind: CronJob, name: app}
+    patch: |-
+      - op: replace
+        path: /spec/schedule
+        value: "7 3 * * *"
+configMapGenerator:
+  - name: app-profile
+    files:
+      - profile.toml
+  - name: app-settings
+    literals:
+      - HTTPCHECK_PROFILE=/etc/app/profile.toml
+      - HTTPCHECK_WORK_DIR=/work
+      - HTTPCHECK_RESULTS_URI=s3://<bucket>/<prefix>
+      - HTTPCHECK_GROUP=<profile name>
+      - HTTPCHECK_RUN_BUDGET=3000
+      # Any notifier kinds, comma-separated: slack, webhook, exec, file, log, or a plugin's.
+      - HTTPCHECK_NOTIFY=slack:env:SLACK_WEBHOOK
+      # Opt-in: concurrency, a per-case timeout, metrics for a textfile collector.
+      # - HTTPCHECK_WORKERS=4
+      # - HTTPCHECK_CASE_TIMEOUT=120
+      # - HTTPCHECK_METRICS_FILE=/metrics/httpcheck.prom
+      - AWS_DEFAULT_REGION=<region>
+      # For an S3-compatible store:
+      # - AWS_ENDPOINT_URL_S3=https://<endpoint>

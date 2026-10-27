@@ -1,0 +1,40 @@
+# Everything that can be checked without a deployed target: the library and example tests
+# (S3 against a mock), types, lint, the Kubernetes manifests, the scripts and the image.
+name: Offline tests
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: ./install.sh --dev
+      - run: .venv/bin/ruff check . && .venv/bin/ruff format --check .
+      - run: .venv/bin/mypy src/runkit
+      - run: .venv/bin/python -m pytest tests examples/httpcheck/tests -q
+
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Manifests render
+        run: |
+          kubectl kustomize deploy/base > /dev/null
+          kubectl kustomize deploy/overlays/example > /dev/null
+      - name: Scripts pass shellcheck
+        run: shellcheck deploy/trigger.sh scripts/*.sh install.sh
+      - name: The runner image builds from the lock
+        run: |
+          docker build -f Containerfile --build-arg GIT_SHA="$GITHUB_SHA" -t runner:ci .
+          docker run --rm runner:ci --version
+          test "$(docker run --rm --entrypoint id runner:ci -u)" != 0

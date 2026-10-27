@@ -1,0 +1,20 @@
+# A committed profile names variables, never URLs or keys. Real values live in the
+# environment, or in a <name>.local.toml copy that .gitignore excludes.
+#
+# Declare what a CORRECT service does. When the target differs, the case fails and the team
+# triages it; the profile is not edited to turn the run green.
+name = "example-service"
+
+[[targets]]
+name = "gateway"
+base_url_env = "GATEWAY_URL"
+key_env = "GATEWAY_TOKEN"
+capabilities = ["health", "json", "auth"]
+health_path = "/health"
+max_latency_ms = 500
+
+[[targets]]
+name = "backend"
+base_url_env = "BACKEND_URL"
+capabilities = ["health", "json"]
+health_path = "/health"

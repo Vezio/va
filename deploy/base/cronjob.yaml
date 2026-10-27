@@ -1,0 +1,74 @@
+# The one pod specification: scheduled, and cloned by trigger.sh for an on-demand run.
+# Generic: an overlay supplies the namespace, image, profile, settings and schedule.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: app
+spec:
+  schedule: "0 2 * * *"
+  timeZone: Etc/UTC
+  # Only against its own runs; a triggered Job may overlap harmlessly (unique run ids).
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      # No retries: a retried run hides the failure under test.
+      backoffLimit: 0
+      # Above <APP>_RUN_BUDGET (app-settings) plus the time to compare, publish and notify.
+      activeDeadlineSeconds: 3600
+      ttlSecondsAfterFinished: 86400
+      template:
+        spec:
+          # The run never calls the Kubernetes API; mount a token only if it reads the cluster.
+          automountServiceAccountToken: false
+          restartPolicy: Never
+          # Time for `job` to publish and notify after SIGTERM.
+          terminationGracePeriodSeconds: 120
+          securityContext:
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: app
+              image: app
+              # `job` flags, then anything `job` does not define is passed through to `<app> run`
+              # (selection, labels). The budget, profile and destination come from app-settings.
+              args: ["job", "--compare", "--label", "trigger=nightly"]
+              envFrom:
+                # Results destination (<APP>_RESULTS_URI), group, S3 endpoint and region.
+                - configMapRef:
+                    name: app-settings
+                # Notifier URLs (read by notifier specs as env:NAME), object-store keys and target
+                # credentials; created out of band.
+                - secretRef:
+                    name: app-secrets
+                    optional: true
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: [ALL]
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+                limits:
+                  memory: 1Gi
+              volumeMounts:
+                - name: profile
+                  mountPath: /etc/app
+                  readOnly: true
+                - name: work
+                  mountPath: /work
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: profile
+              configMap:
+                name: app-profile
+            - name: work
+              emptyDir: {}
+            - name: tmp
+              emptyDir: {}

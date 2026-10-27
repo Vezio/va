@@ -1,0 +1,78 @@
+# A live run against a deployed system: nightly on a schedule, or on demand. The exit code
+# decides the job's colour, and the summary lands on the run page. Results are published to
+# the bucket under <group>/<run id>/ with the manifest last, and compared with earlier nightly
+# runs of the same group.
+#
+# Configure in the repository settings:
+#   variables: RESULTS_URI (s3://bucket/prefix), GROUP, AWS_ENDPOINT_URL_S3 (optional),
+#              NOTIFY (notifier specs, e.g. slack:env:SLACK_WEBHOOK or webhook:env:ALERTS_WEBHOOK)
+#   secrets:   AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, SLACK_WEBHOOK / ALERTS_WEBHOOK (whichever
+#              NOTIFY names), and the target variables the profile names (e.g. GATEWAY_URL)
+name: Live run
+on:
+  schedule:
+    - cron: "7 3 * * *"
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: profile to run
+        default: examples/httpcheck/profiles/example.toml
+      select:
+        description: only cases whose id contains this (empty runs everything)
+        default: ""
+permissions:
+  contents: read
+concurrency:
+  group: live-run
+  cancel-in-progress: false
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      HTTPCHECK_PROFILE: ${{ inputs.profile || 'examples/httpcheck/profiles/example.toml' }}
+      HTTPCHECK_RESULTS_URI: ${{ vars.RESULTS_URI }}
+      HTTPCHECK_GROUP: ${{ vars.GROUP }}
+      AWS_ENDPOINT_URL_S3: ${{ vars.AWS_ENDPOINT_URL_S3 }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      HTTPCHECK_NOTIFY: ${{ vars.NOTIFY }}
+      SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+      ALERTS_WEBHOOK: ${{ secrets.ALERTS_WEBHOOK }}
+      GATEWAY_URL: ${{ secrets.GATEWAY_URL }}
+      GATEWAY_TOKEN: ${{ secrets.GATEWAY_TOKEN }}
+      BACKEND_URL: ${{ secrets.BACKEND_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install ".[s3,yaml]" ./examples/httpcheck
+      - name: Run
+        id: run
+        run: |
+          trigger=${{ github.event_name == 'schedule' && 'nightly' || 'manual' }}
+          select=()
+          [ -n "${{ inputs.select }}" ] && select=(-k "${{ inputs.select }}")
+          set +e
+          httpcheck job --compare --label "trigger=$trigger" \
+            --link "ci=${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            "${select[@]}"
+          code=$?
+          set -e
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          for summary in runs/*/summary.md runs/*/comparison.md; do
+            [ -f "$summary" ] && cat "$summary" >> "$GITHUB_STEP_SUMMARY"
+          done
+          exit "$code"
+      - name: Explain the exit code
+        if: failure()
+        run: |
+          case "${{ steps.run.outputs.code }}" in
+            1) echo "::error::the target failed cases; see the summary" ;;
+            2) echo "::error::usage or an invalid profile" ;;
+            3) echo "::error::preflight: the runner's environment is not ready, nothing was tested" ;;
+            4) echo "::error::the tool failed internally" ;;
+            5) echo "::error::the verdict passed but results or the notification were not delivered" ;;
+            6) echo "::error::interrupted; results are partial" ;;
+          esac

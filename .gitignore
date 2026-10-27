@@ -218,3 +218,11 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# runkit
+runs/
+*.local.toml
+*.local.yaml
+*.local.json
+secrets.env
+.claude/

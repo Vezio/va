@@ -1,0 +1,21 @@
+# The unattended runner image: the example app, its extras, running `<app> job`.
+# Build from the repository root:
+#   podman build -f Containerfile --build-arg GIT_SHA="$(git rev-parse HEAD)" -t <registry>/<org>/httpcheck:<sha> .
+FROM python:3.12-slim
+ARG GIT_SHA=unknown
+LABEL org.opencontainers.image.revision=$GIT_SHA
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 HOME=/tmp
+WORKDIR /src
+# Third-party dependencies from the lock (scripts/lock.sh), every file hash-checked: a rebuild
+# cannot drift, and a tampered package fails the build.
+COPY requirements.lock ./
+RUN pip install --require-hashes -r requirements.lock
+# runkit and the app from source; their dependencies are already in place.
+COPY pyproject.toml README.md ./
+COPY src ./src
+COPY examples/httpcheck ./examples/httpcheck
+RUN pip install --no-deps . ./examples/httpcheck && pip check && rm -rf /src
+USER 65532:65532
+WORKDIR /work
+ENTRYPOINT ["httpcheck"]
+CMD ["job"]
