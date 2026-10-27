@@ -150,6 +150,7 @@ and adds nothing.
 | Guide | Contents |
 |---|---|
 | [Getting started](docs/getting-started.md) | Creating, testing and running a first tool |
+| [Writing and registering cases](docs/cases.md) | How cases are registered, loaded, selected and run |
 | [Profiles](docs/profiles.md) | Designing and validating the profile that describes the targets |
 | [Extending profiles](docs/extending-profiles.md) | Adding to a profile schema and evolving it safely |
 | [Usage](docs/usage.md) | Commands, flags, run directories, exit codes, comparison and notifications |

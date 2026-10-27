@@ -14,9 +14,10 @@ API. Other names are reachable from their modules and may change between minor v
 | Area | Names |
 |---|---|
 | Building a tool | `App`, `Command`, `UsageError`, `run_app`, `add_run_arguments`, `RunOptions` |
-| Running checks | `Session`, `Baseline`, `CaseRegistry`, `Case`, `Context`, `Selector`, `Runner`, `Target` |
+| Running checks | `Session`, `Baseline`, `CaseRegistry`, `Case`, `Context`, `Selector`, `Runner`, `Target` (see [Writing and registering cases](../../docs/cases.md)) |
 | Profiles | `Problems`, `ProfileError` (plus `profile.load`, `profile.digest`, `profile.resolve_env`) |
-| Layers | `LayerKinds`, `LayerKind`, `LayerAdapter`, `HeaderServedBy`, `AnswersItself`, `LayerLocator`, `Location` |
+| Layers | `LayerKinds`, `LayerKind`, `LayerAdapter`, `Layered`, `HeaderServedBy`, `AnswersItself`, `LayerLocator`, `Location` |
+| Output and logging | `emit` (primary output on stdout), `get_logger` |
 | Results and runs | `RunDir`, `ResultRecord`, `RunOutcome`, `Verdict`, `Check`, `CaseKey`, `Counts`, `Failure`, `Problem`, `Severity`, `Publication`, `PublicationStatus`, `SkipClass`, `SkipClasses`, `RunFile`, `Schema` |
 | Comparison and reporting | `compare`, `Comparison`, `Change`, `ChangeKind`, `RunReport` |
 | Publication | `deliver`, `Archive`, `Sink` |
@@ -109,7 +110,7 @@ comparison, publication and notification itself.
 
 | To add | Implement | Register or pass |
 |---|---|---|
-| A check | a function taking a `Context` | `@REGISTRY.case(...)` in your tool |
+| A check | a function taking a `Context` | `@REGISTRY.case(...)` or `REGISTRY.add(Case(...))` in your tool ([guide](../../docs/cases.md)) |
 | A profile schema | dataclasses and a `load` function using `Problems` | your tool's `run` command |
 | A protocol client | any class; record exchanges with `RunDir.append_jsonl` | your tool's state object |
 | A layer kind | `LayerKinds.register(...)`, and a `LayerAdapter` where calling it differs | your tool's `LayerKinds`; `kind:` in profiles |

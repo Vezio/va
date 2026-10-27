@@ -3,6 +3,7 @@
 | Guide | Contents |
 |---|---|
 | [Getting started](getting-started.md) | Installation, the demonstration, and creating a first tool |
+| [Writing and registering cases](cases.md) | How cases are registered, loaded, selected and run, and how to add them |
 | [Profiles](profiles.md) | Designing and validating the profile that describes the targets |
 | [Extending profiles](extending-profiles.md) | Adding settings, capabilities, declarations and credentials to a profile schema, and evolving it safely |
 | [Usage](usage.md) | Commands, flags, run directories, exit codes, comparison and notifications |

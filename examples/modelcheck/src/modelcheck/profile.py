@@ -31,10 +31,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from va import profile
-from va.profile import Problems
+from va import Problems, profile
 
-from .layers import KINDS
+from modelcheck.layers import KINDS
 
 CAPABILITIES = ("models", "chat", "stream", "auth")
 TOP_KEYS = ("name", "description", "model", "max_latency_ms", "targets")

@@ -205,7 +205,8 @@ GATEWAY_URL=https://... GATEWAY_TOKEN=... BACKEND_URL=https://... \\
 
 | Path | Purpose |
 |---|---|
-| \`src/$name/cases/\` | the checks; a new module must be imported in \`cases/__init__.py\` |
+| \`src/$name/registry.py\` | the case registry, \`REGISTRY\` |
+| \`src/$name/cases/\` | the checks; a new module must be imported in \`cases/__init__.py\` and listed in \`__all__\` |
 | \`src/$name/profile.py\` | the profile schema and its validation |
 | \`src/$name/client.py\` | the recording HTTP client used by the checks |
 | \`src/$name/cli.py\` | the \`run\` and \`profile\` commands; \`job\`, \`publish\`, \`compare\` and \`notify\` are provided by the framework |

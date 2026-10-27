@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from va import Context
 
-from . import REGISTRY
+from modelcheck.registry import REGISTRY
 
 PROMPTS = {
     "user_only": [{"role": "user", "content": "What is the capital of France?"}],

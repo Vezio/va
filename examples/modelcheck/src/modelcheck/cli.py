@@ -17,27 +17,27 @@ import threading
 from pathlib import Path
 
 from va import (
+    REDACTOR,
     App,
     ExitCode,
+    Key,
     LayerKinds,
     LayerLocator,
+    RunDir,
     RunOptions,
     Session,
     UsageError,
     add_run_arguments,
+    emit,
     preflight,
     run_app,
 )
-from va.log import emit
-from va.redact import REDACTOR
-from va.rundir import RunDir
-from va.settings import Key
 
-from . import __version__
-from .cases import REGISTRY
-from .client import RecordingClient
-from .layers import KINDS
-from .profile import Profile, Target, load
+from modelcheck import __version__
+from modelcheck.cases import REGISTRY
+from modelcheck.client import RecordingClient
+from modelcheck.layers import KINDS
+from modelcheck.profile import Profile, Target, load
 
 PROG = "modelcheck"
 

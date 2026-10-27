@@ -136,7 +136,8 @@ Both examples have the same shape, which `scripts/new-app.sh` copies:
 | `profile.py` | the tool's typed profile, validated with `Problems` ([Profiles](profiles.md)) |
 | `layers.py` | modelcheck's kinds of layer (`proxy`, `router`, `engine`) and their adapters |
 | `client.py` | a recording client for the protocol under test (here HTTP) |
-| `cases/` | one module per group of cases, registered into `REGISTRY` by being imported in `cases/__init__.py` |
+| `registry.py` | the tool's `CaseRegistry`, `REGISTRY` |
+| `cases/` | one module per group of cases, each registering into `REGISTRY`; `cases/__init__.py` imports every module and re-exports `REGISTRY` ([Writing and registering cases](cases.md)) |
 | `cli.py` | the tool's `run` (builds a `Session` from `RunOptions`) and `profile` commands, plus the built-ins |
 | `tests/fake_*.py` | a real local server with switchable defects: every case is proven to fail against one |
 

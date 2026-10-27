@@ -17,24 +17,24 @@ import threading
 from pathlib import Path
 
 from va import (
+    REDACTOR,
     App,
     ExitCode,
+    Key,
+    RunDir,
     RunOptions,
     Session,
     UsageError,
     add_run_arguments,
+    emit,
     preflight,
     run_app,
 )
-from va.log import emit
-from va.redact import REDACTOR
-from va.rundir import RunDir
-from va.settings import Key
 
-from . import __version__
-from .cases import REGISTRY
-from .client import RecordingClient
-from .profile import Profile, Target, load
+from httpcheck import __version__
+from httpcheck.cases import REGISTRY
+from httpcheck.client import RecordingClient
+from httpcheck.profile import Profile, Target, load
 
 PROG = "httpcheck"
 

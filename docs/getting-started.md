@@ -80,12 +80,12 @@ from __future__ import annotations
 
 from va import Context
 
-from . import REGISTRY
+from mytool.registry import REGISTRY
 
 
 @REGISTRY.case("api.models_listed", needs={"json"}, tags={"smoke"})
 def models_listed(ctx: Context) -> None:
-    """GET /v1/models answers 200 and lists at least one model."""
+    """Verify that GET /v1/models returns 200 and lists at least one model."""
     t = ctx.target
     exchange = ctx.state.client(t).get("/v1/models", case_id=ctx.case_id)
     ctx.require("http_status", exchange.status, 200)
@@ -93,12 +93,18 @@ def models_listed(ctx: Context) -> None:
     ctx.require("model_count", len(models), ">= 1", len(models) >= 1)
 ```
 
-Then register it: add `models` to the import at the bottom of `src/mytool/cases/__init__.py`.
-A module that is not imported there never runs.
+Then load it: import the module in `src/mytool/cases/__init__.py` and add it to `__all__`. A
+module that is not imported there is never loaded, so its cases never run.
 
 ```python
-from . import api, health, models  # noqa: E402, F401  -- registration on import
+from mytool.cases import api, health, models
+from mytool.registry import REGISTRY
+
+__all__ = ["REGISTRY", "api", "health", "models"]
 ```
+
+[Writing and registering cases](cases.md) explains how the registry, the case modules and the
+`run` command fit together, and covers every option of the decorator.
 
 - `ctx.require(name, observed, expected)` records the check, then fails the case unless observed
   equals expected; pass a fourth argument to decide yourself, as `model_count` does.

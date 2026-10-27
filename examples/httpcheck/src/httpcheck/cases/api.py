@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from va.runner import Context
+from va import Context
 
-from . import REGISTRY
+from httpcheck.registry import REGISTRY
 
 
 @REGISTRY.case("api.json_content_type", needs={"json", "health"})

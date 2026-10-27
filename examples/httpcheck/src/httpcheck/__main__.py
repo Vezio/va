@@ -1,5 +1,5 @@
 """Entry point for `python -m httpcheck`."""
 
-from .cli import main
+from httpcheck.cli import main
 
 main()

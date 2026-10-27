@@ -14,8 +14,7 @@ from pathlib import Path
 
 import pytest
 from fake_server import FakeService
-from va import ExitCode
-from va.redact import REDACTOR
+from va import REDACTOR, ExitCode
 
 from httpcheck.cli import build_app
 

@@ -18,9 +18,7 @@ import urllib.request
 from dataclasses import dataclass
 from typing import Any
 
-from va import LayerAdapter
-from va.layers import Layered
-from va.rundir import RunDir
+from va import LayerAdapter, Layered, RunDir
 
 
 @dataclass

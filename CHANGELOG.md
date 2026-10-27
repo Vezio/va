@@ -20,6 +20,11 @@ existing tool is marked **changed**.
 - Every module, class, function and method is documented with Google-style docstrings, enforced
   by ruff's pydocstyle rules in this repository and in tools created with `scripts/new-app.sh`.
   Comments throughout the code, scripts and manifests were revised for clarity.
+- New guide: [Writing and registering cases](docs/cases.md).
+- The example tools keep their case registry in `registry.py`, use absolute imports, and import
+  framework names from the `va` package root. Tools created from an earlier template continue to
+  work; the change is in layout only.
+- `emit`, `get_logger` and `Layered` are exported from the `va` package root.
 - `scripts/new-app.sh --local` installs the framework checkout in editable mode. It used to
   depend on a `file://` URL, and pip reused a cached wheel of an older framework in its place.
 

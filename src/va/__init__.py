@@ -19,12 +19,14 @@ from .layers import (  # noqa: E402
     AnswersItself,
     HeaderServedBy,
     LayerAdapter,
+    Layered,
     LayerKind,
     LayerKinds,
     LayerLocator,
     Location,
 )
 from .layout import RunFile, Schema  # noqa: E402
+from .log import emit, get_logger  # noqa: E402
 from .model import (  # noqa: E402
     CaseKey,
     Check,
@@ -77,6 +79,7 @@ __all__ = [
     "HeaderServedBy",
     "Key",
     "LayerAdapter",
+    "Layered",
     "LayerKind",
     "LayerKinds",
     "LayerLocator",
@@ -113,6 +116,8 @@ __all__ = [
     "Verdict",
     "add_run_arguments",
     "compare",
+    "emit",
+    "get_logger",
     "deliver",
     "run_app",
 ]

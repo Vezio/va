@@ -1,12 +1,14 @@
-"""Test cases for modelcheck.
+"""The modelcheck cases.
 
-Each module registers its cases into `REGISTRY` when it is imported, so a new case module must
-be imported here. Every case has a matching defect in `tests/fake_stack.py` that makes it fail.
+Each module in this package defines cases and registers them in `modelcheck.registry.REGISTRY`
+with the `REGISTRY.case` decorator. Importing this package imports every case module, so
+`from modelcheck.cases import REGISTRY` returns the registry with all cases registered.
+
+To add a case module, create it in this package, import it below and add it to `__all__`. Each
+case has a matching defect in `tests/fake_stack.py` that makes it fail.
 """
 
-from va import CaseRegistry
+from modelcheck.cases import auth, chat, errors, models, stream
+from modelcheck.registry import REGISTRY
 
-REGISTRY = CaseRegistry()
-
-# Importing the modules registers their cases.
-from . import auth, chat, errors, models, stream  # noqa: E402, F401
+__all__ = ["REGISTRY", "auth", "chat", "errors", "models", "stream"]

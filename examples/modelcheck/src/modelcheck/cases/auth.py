@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from va import Context
 
-from . import REGISTRY
+from modelcheck.registry import REGISTRY
 
 
 @REGISTRY.case("auth.rejects_bad_key", needs={"auth"}, tags={"smoke", "security"})

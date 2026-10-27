@@ -7,7 +7,7 @@ changes.
 
 | To add | Where | Chosen by |
 |---|---|---|
-| [cases](#cases) | your `cases/` package | `-k`, `--tag` |
+| [cases](cases.md) | your `cases/` package and `registry.py` | `-k`, `--tag` |
 | [a profile schema](profiles.md), [or extend one](extending-profiles.md) | your `profile.py` | `--profile` |
 | [a client for another protocol](#a-client-for-another-protocol) | your `client.py`, your `State` | the cases |
 | [a layer kind](#a-layer-kind) | your `LayerKinds` registry | `kind:` on a target |
@@ -22,8 +22,9 @@ changes.
 
 ## Cases
 
-A case is a function registered with `@REGISTRY.case`; [Getting started](getting-started.md#4-write-a-case)
-walks through one. Options of the decorator:
+A case is a function registered with `@REGISTRY.case`. [Writing and registering cases](cases.md)
+explains how registration works and how to add cases, including generated ones; [Getting
+started](getting-started.md#4-write-a-case) walks through a first case. Options of the decorator:
 
 | Option | |
 |---|---|

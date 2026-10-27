@@ -12,8 +12,7 @@ from pathlib import Path
 
 import pytest
 from fake_stack import TOKEN, FakeStack
-from va import ExitCode
-from va.redact import REDACTOR
+from va import REDACTOR, ExitCode
 
 from modelcheck.cli import build_app
 

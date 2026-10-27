@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from va import Context
 
-from . import REGISTRY
+from modelcheck.registry import REGISTRY
 
 
 @REGISTRY.case("errors.unknown_model", needs={"chat"})

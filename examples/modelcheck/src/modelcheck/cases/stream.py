@@ -6,8 +6,8 @@ import json
 
 from va import Context
 
-from ..client import sse_events
-from . import REGISTRY
+from modelcheck.client import sse_events
+from modelcheck.registry import REGISTRY
 
 
 @REGISTRY.case("stream.well_formed", needs={"stream"}, tags={"smoke"})
