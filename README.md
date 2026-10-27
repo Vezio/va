@@ -31,6 +31,7 @@ Built by Tyler **V**ezio Rimaldi ([@Vezio](https://github.com/Vezio)) and **A**l
 | Capability | Description |
 |---|---|
 | **Declarative profiles** | Each target, how to reach it, what it supports and how a correct one behaves, in a validated file; every problem is reported in a single pass. See [Profiles](docs/profiles.md). |
+| **Layered stacks** | Targets declared as the layers of one stack (a gateway, a router, an engine), validated as a stack and run outermost first. Each failure is placed at the layer it starts at: the one that fails while the layer behind it passes. See [Layers](docs/profiles.md#layers). |
 | **Recorded evidence** | Every check records the observed and expected values before a verdict is reached, so each failure carries the value that caused it. |
 | **Failure attribution** | Distinct exit codes separate failing checks, an unprepared environment, a tool defect and failed delivery, so automation can act on each without parsing logs. See [Exit codes](docs/usage.md#exit-codes). |
 | **Credential protection** | Registered credentials and bearer tokens are redacted from logs, run files, reports and notifications. |
@@ -48,36 +49,37 @@ git clone https://github.com/Vezio/va && cd va
 demo/local/run.sh
 ```
 
-The demonstration starts a local OpenAI-compatible serving stack, consisting of an engine and a
-gateway in front of it, and verifies it with `modelcheck`, an example tool built on the
-framework. It performs two runs:
+The demonstration starts a local OpenAI-compatible serving stack, consisting of a gateway, a
+router behind it and an engine behind that, and verifies it with `modelcheck`, an example tool
+built on the framework. It performs two runs:
 
 1. **Baseline.** The stack is healthy. All checks pass and the run is archived as the baseline.
-2. **Regression.** A defect is introduced in the gateway: its responses no longer terminate
-   streams with `data: [DONE]`. The affected check fails on the gateway and passes on the engine
-   behind it, isolating the defect to the gateway, and the comparison with the baseline reports
-   it as a regression.
+2. **Regression.** A defect is introduced in the router: it strips token usage from the
+   completions it forwards. The affected check fails at the router and at the gateway in front
+   of it, and passes at the engine behind them; the run places the defect at the router, and the
+   comparison with the baseline reports the regression.
 
 ```
 === What the second run found
 
-  case                             gateway   engine
-  auth.rejects_bad_key             pass      skip
-  chat.completion[user_only]       pass      pass
-  chat.completion[with_system]     pass      pass
-  chat.latency                     pass      pass
-  chat.usage_adds_up               pass      pass
-  errors.unknown_model             pass      pass
-  models.lists_declared_model      pass      pass
-  stream.well_formed               FAIL      pass
+  case                          gateway  router   engine   starts at
+  auth.rejects_bad_key          pass     skip     skip
+  chat.completion[user_only]    pass     pass     pass
+  chat.completion[with_system]  pass     pass     pass
+  chat.latency                  pass     pass     pass
+  chat.usage_adds_up            FAIL     FAIL     pass     router
+  errors.unknown_model          pass     pass     pass
+  models.lists_declared_model   pass     pass     pass
+  stream.well_formed            pass     pass     pass
 
   compared with last night:
-  regression: gateway stream.well_formed: pass -> fail
+  regression: gateway chat.usage_adds_up: pass -> fail
+  regression: router chat.usage_adds_up: pass -> fail
 ```
 
-The engine's authentication check is skipped by design: its profile does not declare
-authentication, and the skip records that reason rather than reporting a pass. Each run also
-produces an HTML report and an archived copy in `demo/local/out/`.
+The authentication check is skipped behind the gateway by design: the router and engine do not
+declare authentication, and the skip records that reason rather than reporting a pass. Each run
+also produces an HTML report and an archived copy in `demo/local/out/`.
 
 A second demonstration deploys a tool as a Kubernetes CronJob on a local kind cluster and
 verifies its operational behaviour. See [demo/README.md](demo/README.md).

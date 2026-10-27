@@ -62,6 +62,7 @@ field is compatible; renaming or removing one needs a new version.
 | `notifiers/` | the `Notifier` protocol, registered in `PLUGINS.notifiers`, spec parsing; built-ins `slack`, `webhook`, `exec`, `file`, `log` |
 | `preflight.py` | `Problem`s with a kind and severity; ready-made checks |
 | `profile.py` | profile formats registered in `PLUGINS.profile_loaders` (YAML by default; TOML and JSON), the `Problems` collector, digest |
+| `layers.py` | targets as the layers of one stack: a tool's `LayerKinds`, adapters per kind, ordering, and `LayerLocator`, which places each failure at the layer it starts at |
 | `settings.py` | `<PREFIX>_<KEY>` environment settings, named in one place |
 | `plugins.py` | `PluginRegistry` (named factories, entry-point discovery) and `PLUGINS`, every extension point in one object |
 | `layout.py` | `RunFile` and `Schema`: every file name and schema id |
@@ -114,6 +115,7 @@ Each is additive: no VA change, no fork.
 | a **results store** (GCS, Azure Blob, an upload API) | implement `Sink`; `PLUGINS.sinks.register("gs", GcsSink)` | the destination URI's scheme; group `va.sinks` |
 | a **profile format** (Jsonnet, CUE, HCL) | a `text -> mapping` function; `PLUGINS.profile_loaders.register("jsonnet", load)` | the file suffix; group `va.profile_loaders` |
 | **live reporting** (metrics, a database, a live table, an extra report file) | subclass `RunHooks`; add it to `Session(hooks=[*options.hooks(), yours])` | code |
+| a **layer kind** (a gateway, a router, a cache, a load balancer) | `KINDS.register("cache", depth=1, adapter=...)` on your tool's `LayerKinds`; add `LayerLocator` to the hooks | `kind:` on a profile target |
 | a **case** | `@REGISTRY.case("group.what", needs=..., variants=..., tags=...)` | `-k`, `--tag`, `--exclude-tag` |
 | a **skip class** | `App(skip_classes=SkipClasses.default().extend(SkipClass(...)))` | `ctx.skip(name, reason)` |
 | a **preflight check** | a callable returning `Problem`s | `Session(checks=...)` |
@@ -132,6 +134,7 @@ Both examples have the same shape, which `scripts/new-app.sh` copies:
 | Module | Responsibility |
 |---|---|
 | `profile.py` | the tool's typed profile, validated with `Problems` ([Profiles](profiles.md)) |
+| `layers.py` | modelcheck's kinds of layer (`proxy`, `router`, `engine`) and their adapters |
 | `client.py` | a recording client for the protocol under test (here HTTP) |
 | `cases/` | one module per group of cases, registered into `REGISTRY` by being imported in `cases/__init__.py` |
 | `cli.py` | the tool's `run` (builds a `Session` from `RunOptions`) and `profile` commands, plus the built-ins |

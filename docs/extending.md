@@ -10,6 +10,7 @@ changes.
 | [cases](#cases) | your `cases/` package | `-k`, `--tag` |
 | [a profile schema](profiles.md), [or extend one](extending-profiles.md) | your `profile.py` | `--profile` |
 | [a client for another protocol](#a-client-for-another-protocol) | your `client.py`, your `State` | the cases |
+| [a layer kind](#a-layer-kind) | your `LayerKinds` registry | `kind:` on a target |
 | [preflight checks](#preflight-checks) | your `run` command | always run first |
 | [behaviour during a run](#hooks) | a `RunHooks` subclass | your `run` command |
 | [a notification channel](#a-notification-channel) | `PLUGINS.notifiers` | `--notify KIND:TARGET` |
@@ -75,6 +76,59 @@ class RecordingDbClient:
 ```
 
 Never retry inside a client used by cases: a retried request hides the failure under test.
+
+## A layer kind
+
+When targets are the layers of one stack ([Profiles: Layers](profiles.md#layers)), your tool owns
+the vocabulary of kinds: one `LayerKinds` registry, usually in its own module. A kind is a name,
+a depth (0 is the outermost: what a client calls first) and, when calling it differs, an
+adapter. From [`examples/modelcheck/src/modelcheck/layers.py`](../examples/modelcheck/src/modelcheck/layers.py):
+
+```python
+from va import AnswersItself, HeaderServedBy, LayerKinds
+
+KINDS = LayerKinds()
+KINDS.register("proxy", depth=0, adapter=HeaderServedBy("x-served-by"))
+KINDS.register("router", depth=1, adapter=HeaderServedBy("x-served-by"))
+KINDS.register("engine", depth=2, adapter=AnswersItself())
+```
+
+A new kind is one more `register` call: profiles can use it at once, and it is ordered and
+validated with the others. Kinds of equal depth are allowed in front of each other (a proxy behind
+a proxy); a kind of greater depth in front of a lesser one is refused.
+
+An adapter is the one place for what differs about calling a kind of layer, so cases never
+branch on it. Subclass `LayerAdapter` and override only what differs:
+
+| Method | Default | Override when |
+|---|---|---|
+| `request_headers(layer)` | none | the layer needs a header on every request: to route to one backend, or to select a pool |
+| `served_by(layer, headers)` | `None` | the layer says which component answered; recorded with each exchange |
+
+```python
+class PoolRouter(LayerAdapter):
+    """A router that picks a pool from a header, and names the endpoint it chose."""
+
+    def request_headers(self, layer):
+        return {"x-target-pool": layer.pool}            # a field your profile declares
+
+    def served_by(self, layer, headers):
+        return headers.get("x-endpoint")
+```
+
+Your client applies them: it is built with the target and `KINDS.adapter(target)`, merges
+`request_headers` into every request, and records `served_by` with each exchange (see
+modelcheck's `client.py`). `served_by` is evidence, never a verdict on its own.
+
+To place failures, add the `LayerLocator` hook to the run with the ordered targets:
+
+```python
+hooks=[*options.hooks(), LayerLocator(profile.targets)]
+```
+
+It writes `layers.json` (the stack as declared, and where each failing case's failure starts) and
+logs one line per failure. `LayerKinds.locate(layers, verdicts)` is the same rule for one case,
+for a report or dashboard of your own.
 
 ## Preflight checks
 

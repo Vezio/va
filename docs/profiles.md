@@ -25,11 +25,11 @@ looking.
 ## A worked example
 
 [`examples/modelcheck/profiles/stack.yaml`](../examples/modelcheck/profiles/stack.yaml)
-describes a gateway, and the engine behind it:
+describes a gateway, the router behind it, and the engine behind that:
 
 ```yaml
 name: demo-stack
-description: the gateway and the engine behind it
+description: a gateway, the router behind it, and its engine
 
 # Defaults for every target; a target may override them.
 model: demo-model
@@ -37,6 +37,8 @@ max_latency_ms: 800              # an engine answers directly, so the default is
 
 targets:
   - name: gateway
+    kind: proxy
+    behind: router
     base_url_env: GATEWAY_URL
     key_env: GATEWAY_TOKEN
     capabilities: [models, chat, stream, auth]
@@ -45,7 +47,17 @@ targets:
       unknown_model_status: 404  # a correct gateway passes the engine's 404 through
       bad_key_status: 401
 
+  - name: router
+    kind: router
+    behind: engine
+    base_url_env: ROUTER_URL
+    capabilities: [models, chat, stream]   # no auth behind the gateway
+    max_latency_ms: 1200          # one hop more than the engine
+    expect:
+      unknown_model_status: 404
+
   - name: engine
+    kind: engine
     base_url_env: ENGINE_URL
     capabilities: [models, chat, stream]   # no auth on the engine: the auth case skips here
     expect:
@@ -56,14 +68,43 @@ What each part does:
 
 | Feature | In the file | Effect |
 |---|---|---|
-| **Several targets, one set of cases** | two entries under `targets` | every case runs once per target; comparing the two columns shows which layer a problem is in |
+| **Several targets, one set of cases** | one entry per layer under `targets` | every case runs once per target; comparing the columns shows which layer a problem is in |
+| **Layers** | `kind` and `behind` on each target | the targets form a stack, validated as one, run and reported outermost first; a failure is placed at the layer it starts at (see [Layers](#layers)) |
 | **Variables, not values** | `base_url_env`, `key_env` | the profile can be committed and shared; the run reads `$GATEWAY_URL` and `$GATEWAY_TOKEN`, and the key is redacted everywhere |
 | **Defaults with overrides** | `model`, `max_latency_ms` at the top, overridden per target | say a thing once; differ only where a target really differs |
 | **Capabilities** | `capabilities: [...]` | a case that `needs` something a target does not declare is skipped there, with the reason `undeclared`, never silently passed |
 | **Declared behaviour** | `expect:` under a target | cases read the expected answer from the profile, so one case serves layers that legitimately answer differently |
 
-Run `modelcheck profile show examples/modelcheck/profiles/stack.yaml` to see what would run on
-each target, and what would be skipped and why.
+Run `modelcheck profile show examples/modelcheck/profiles/stack.yaml` to see the stack
+(`gateway (proxy) -> router (router) -> engine (engine)`), what would run on each target, and
+what would be skipped and why.
+
+## Layers
+
+When the targets are the ingresses of one stack (a gateway, a router behind it, an engine
+behind that), declare them as **layers**. Each target then says two more things:
+
+| Key | Says | Checked |
+|---|---|---|
+| `kind` | what sort of layer it is: one of the kinds the tool registers (modelcheck: `proxy`, `router`, `engine`) | required; a closed vocabulary |
+| `behind` | the name of the target it forwards to; omitted on the innermost layer | names another target; no cycle; never in front of a layer of an outer kind |
+
+In return, the run:
+
+- **orders the layers outermost first**, by kind, whatever order the file lists them in: columns,
+  reports and listings read from the client's side inwards;
+- **places each failure at the layer it starts at.** A case that fails at the router and passes
+  at the engine behind it starts at the router; the gateway in front fails too, but only passes
+  the defect on. When the layer behind did not run the case (it skipped, or is not declared),
+  the failure is placed at "this layer, or behind it". The run logs one line per failure and
+  writes them to `layers.json`;
+- **calls each kind through its adapter:** the headers that kind needs on every request, and how
+  it says which component answered (`served_by`, recorded with every exchange).
+
+Declare only the layers you can reach. One target is a complete profile; a profile listing a
+gateway alone tests the gateway, and a failure there is placed "at the gateway, or behind it".
+Layers are optional in the framework: a tool whose targets are not a stack (two regions, a
+primary and a replica) leaves `kind` and `behind` out of its schema.
 
 ## Designing yours
 
@@ -98,6 +139,8 @@ From [`examples/modelcheck/src/modelcheck/profile.py`](../examples/modelcheck/sr
 @dataclass(frozen=True)
 class Target:                       # the framework needs `name` and `capabilities`
     name: str
+    kind: str                       # with `behind`: a layer (va.layers.Layered)
+    behind: str | None
     base_url_env: str
     key_env: str | None
     capabilities: frozenset[str]
@@ -112,10 +155,13 @@ def load(path: Path) -> Profile:
     p.unknown_keys(data, TOP_KEYS)  # a misspelled key is reported, with the closest match
     name = p.require(data, "name", str)
     default_model = p.optional(data, "model", str)
-    ...
+    ...                             # per target: kind, behind = KINDS.parse(p, raw, at)
+    KINDS.check_stack(p, targets)   # rules across layers: behind, cycles, kind order
     p.raise_if_any(str(path))       # every problem at once, or nothing
-    return Profile(name, tuple(targets), profile.digest(data), path)
+    return Profile(name, tuple(KINDS.order(targets)), profile.digest(data), path)
 ```
+
+`KINDS` is the tool's `LayerKinds` registry: see [Extending](extending.md#a-layer-kind).
 
 The `Problems` collector:
 
@@ -128,21 +174,24 @@ The `Problems` collector:
 | `int_range(value, low, high, path)` | a number outside its range |
 | `env_name(value, path)` | a field meant to name a variable that holds a value instead |
 | `add(path, message)` | anything else, e.g. a rule across fields |
+| `LayerKinds.parse` / `check_stack` | a layer's `kind` and `behind`, and the stack they form |
 | `raise_if_any(source)` | raises `ProfileError` (exit 2) listing everything found |
 
 A profile with mistakes gets every one of them back:
 
 ```
 $ modelcheck profile validate broken.yaml
-error: broken.yaml: 8 problem(s):
+error: broken.yaml: 10 problem(s):
   modle: is not a known key; did you mean 'model'?
   name: must be str, not int
   targets[0].capabilites: is not a known key; did you mean 'capabilities'?
+  targets[0].kind: must be one of proxy, router, engine, not 'gateway'
   targets[0].capabilities: must be one of models, chat, stream, auth, not 'chats'
   targets[0].key_env: is required when the target declares auth
   targets[0].model: is required (here or at the top of the profile)
   targets[0].expect.unknown_model_status: must be between 100 and 599, not 700
   targets[0].base_url_env: must name an environment variable (UPPER_SNAKE), not hold a value
+  targets[0].behind: names no target: 'routr'
 ```
 
 `profile.digest(data)` hashes the declarations. Record it with each run (the examples put it in
@@ -215,6 +264,7 @@ earlier runs of the same profile.
 - Capabilities and other vocabularies are closed, and checked by the loader.
 - Unknown keys are reported, so a typo cannot silently drop a declaration.
 - Odd-looking declarations carry a comment saying why they are right.
+- For a stack: every target has a `kind`, every layer in front of another names it in `behind`.
 - `profile validate` and `profile show` pass, and a test feeds the loader a broken profile and
   checks the problems it reports.
 

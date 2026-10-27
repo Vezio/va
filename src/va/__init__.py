@@ -5,7 +5,7 @@ shaped this way, and docs/architecture.md for the extension points.
 The names below are the public API; everything else is reachable from its module.
 """
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"
 
 from .cli import App, Command, UsageError, run_app  # noqa: E402
 from .commands import RunOptions, add_run_arguments  # noqa: E402
@@ -13,6 +13,15 @@ from .compare import Change, ChangeKind, Comparison, compare  # noqa: E402
 from .defaults import DEFAULTS, Defaults, RetryPolicy  # noqa: E402
 from .exit_codes import ExitCode  # noqa: E402
 from .hooks import HookChain, ProgressLog, RunHooks  # noqa: E402
+from .layers import (  # noqa: E402
+    AnswersItself,
+    HeaderServedBy,
+    LayerAdapter,
+    LayerKind,
+    LayerKinds,
+    LayerLocator,
+    Location,
+)
 from .layout import RunFile, Schema  # noqa: E402
 from .model import (  # noqa: E402
     CaseKey,
@@ -45,6 +54,7 @@ __all__ = [
     "DEFAULTS",
     "PLUGINS",
     "REDACTOR",
+    "AnswersItself",
     "App",
     "Archive",
     "Baseline",
@@ -62,7 +72,13 @@ __all__ = [
     "ExitCode",
     "Failure",
     "HookChain",
+    "HeaderServedBy",
     "Key",
+    "LayerAdapter",
+    "LayerKind",
+    "LayerKinds",
+    "LayerLocator",
+    "Location",
     "Notifier",
     "PluginRegistry",
     "Plugins",

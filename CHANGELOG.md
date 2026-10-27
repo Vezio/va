@@ -4,6 +4,20 @@ Pin a commit (see the [README](README.md#installation)) and read this before mov
 a newer one. Until 1.0, a minor version may change behaviour; each change that can affect an
 existing tool is marked **changed**.
 
+## 0.5.0
+
+- New: **layers**, for targets that are the ingresses of one stack (`va.layers`). A tool
+  registers its kinds of layer with a depth (`LayerKinds`); each target declares its `kind` and
+  the target it is `behind`. Profiles are checked as a stack (unknown target, cycle, a layer in
+  front of an outer kind), targets run and report outermost first, and each kind has an adapter
+  for the headers it needs and for saying which component answered (`served_by`).
+- New: `LayerLocator`, a run hook that places each failure at the layer it starts at (fails
+  there, passes behind it) and writes `layers.json`.
+- **changed**: modelcheck checks three layers, gateway, router and engine, and every target in its
+  profiles needs a `kind`; layers in front of another name it in `behind`. Its fake stack has a
+  router, and a router defect (`router_drops_usage`); the local demo now finds that one, and
+  places it at the router.
+
 ## 0.4.0
 
 - **changed**: renamed to **VA** (Verify and Attribute). The package installs as

@@ -3,6 +3,9 @@
 Raw HTTP on purpose. An SDK normalises away much of what a test exists to see (malformed
 bodies, wrong statuses, headers), so cases speak HTTP and record exactly what came back.
 Requests are never retried here: a retry hides the failure under test.
+
+Each client is bound to one layer, and its kind's adapter: the adapter's headers go on every
+request, and which component answered (`served_by`) is recorded with every exchange.
 """
 
 from __future__ import annotations
@@ -14,6 +17,8 @@ import urllib.request
 from dataclasses import dataclass
 from typing import Any
 
+from va import LayerAdapter
+from va.layers import Layered
 from va.rundir import RunDir
 
 
@@ -26,6 +31,7 @@ class Exchange:
     body: bytes
     elapsed_ms: float
     error: str | None = None
+    served_by: str | None = None
 
     def json(self) -> Any:
         return json.loads(self.body.decode("utf-8"))
@@ -33,12 +39,21 @@ class Exchange:
 
 class RecordingClient:
     def __init__(
-        self, run: RunDir, base_url: str, *, token: str | None = None, timeout: float = 10
+        self,
+        run: RunDir,
+        base_url: str,
+        *,
+        token: str | None = None,
+        timeout: float = 10,
+        layer: Layered | None = None,
+        adapter: LayerAdapter | None = None,
     ):
         self.run = run
         self.base_url = base_url
         self.token = token
         self.timeout = timeout
+        self.layer = layer
+        self.adapter = adapter or LayerAdapter()
 
     def request(
         self,
@@ -50,7 +65,10 @@ class RecordingClient:
         case_id: str = "",
     ) -> Exchange:
         url = self.base_url + path
-        sent = dict(headers or {})
+        sent = {
+            **(self.adapter.request_headers(self.layer) if self.layer else {}),
+            **(headers or {}),
+        }
         if self.token and "authorization" not in {k.lower() for k in sent}:
             sent["Authorization"] = f"Bearer {self.token}"
         request = urllib.request.Request(url, data=body, headers=sent, method=method)
@@ -65,6 +83,8 @@ class RecordingClient:
         except (urllib.error.URLError, OSError) as exc:
             exchange = Exchange(method, url, None, {}, b"", 0, str(getattr(exc, "reason", exc)))
         exchange.elapsed_ms = round((time.monotonic() - started) * 1000, 1)
+        if self.layer is not None and exchange.status is not None:
+            exchange.served_by = self.adapter.served_by(self.layer, exchange.headers)
         self.run.append_jsonl(
             "exchanges.jsonl",
             [
@@ -74,6 +94,7 @@ class RecordingClient:
                     "url": url,
                     "status": exchange.status,
                     "elapsed_ms": exchange.elapsed_ms,
+                    "served_by": exchange.served_by,
                     "request_headers": sent,  # append_jsonl redacts every value
                     "response_headers": exchange.headers,
                     "response_body": exchange.body[:4096].decode("utf-8", "replace"),

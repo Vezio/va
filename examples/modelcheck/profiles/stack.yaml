@@ -1,11 +1,15 @@
-# An OpenAI-compatible serving stack: a gateway in front of an engine. This is what a CORRECT
-# stack does, declared per layer. The run measures it: a layer that differs fails, and comparing
-# the two columns shows which layer the problem is in. Never edit a declaration to make a run
-# pass; a difference is the finding.
+# An OpenAI-compatible serving stack: a gateway, a router behind it, an engine behind that. This
+# is what a CORRECT stack does, declared per layer. The run measures it: a layer that differs
+# fails, and the layers say where: a case that fails at the router but passes at the engine
+# behind it starts at the router. Never edit a declaration to make a run pass; a difference is
+# the finding.
+#
+# Each target is a layer: a `kind` (proxy, router or engine; outermost first) and the target it
+# is `behind`. Declare only the layers you can reach: one is a complete profile.
 #
 # Addresses and keys are named, never written here: the run reads them from the environment.
 name: demo-stack
-description: the gateway and the engine behind it
+description: a gateway, the router behind it, and its engine
 
 # Defaults for every target; a target may override them.
 model: demo-model
@@ -13,6 +17,8 @@ max_latency_ms: 800              # an engine answers directly, so the default is
 
 targets:
   - name: gateway
+    kind: proxy
+    behind: router
     base_url_env: GATEWAY_URL
     key_env: GATEWAY_TOKEN
     capabilities: [models, chat, stream, auth]
@@ -21,7 +27,17 @@ targets:
       unknown_model_status: 404  # a correct gateway passes the engine's 404 through
       bad_key_status: 401
 
+  - name: router
+    kind: router
+    behind: engine
+    base_url_env: ROUTER_URL
+    capabilities: [models, chat, stream]   # no auth behind the gateway
+    max_latency_ms: 1200          # one hop more than the engine
+    expect:
+      unknown_model_status: 404
+
   - name: engine
+    kind: engine
     base_url_env: ENGINE_URL
     capabilities: [models, chat, stream]   # no auth on the engine: the auth case skips here
     expect:

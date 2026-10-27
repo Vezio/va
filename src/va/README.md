@@ -16,6 +16,7 @@ API. Other names are reachable from their modules and may change between minor v
 | Building a tool | `App`, `Command`, `UsageError`, `run_app`, `add_run_arguments`, `RunOptions` |
 | Running checks | `Session`, `Baseline`, `CaseRegistry`, `Case`, `Context`, `Selector`, `Runner`, `Target` |
 | Profiles | `Problems`, `ProfileError` (plus `profile.load`, `profile.digest`, `profile.resolve_env`) |
+| Layers | `LayerKinds`, `LayerKind`, `LayerAdapter`, `HeaderServedBy`, `AnswersItself`, `LayerLocator`, `Location` |
 | Results and runs | `RunDir`, `ResultRecord`, `RunOutcome`, `Verdict`, `Check`, `CaseKey`, `Counts`, `Failure`, `Problem`, `Severity`, `Publication`, `PublicationStatus`, `SkipClass`, `SkipClasses`, `RunFile`, `Schema` |
 | Comparison and reporting | `compare`, `Comparison`, `Change`, `ChangeKind`, `RunReport` |
 | Publication | `deliver`, `Archive`, `Sink` |
@@ -72,6 +73,7 @@ comparison, publication and notification itself.
 | Module | Provides |
 |---|---|
 | `profile.py` | `load` (format chosen by suffix: YAML by default, TOML, JSON, or a plugin), `Problems` (`require`, `optional`, `unknown_keys`, `one_of`, `int_range`, `env_name`, `check_type`, `add`, `raise_if_any`), `ProfileError`, `digest`, `resolve_env`. See [Profiles](../../docs/profiles.md) and [Extending profiles](../../docs/extending-profiles.md). |
+| `layers.py` | Targets as the layers of one stack. `LayerKinds`: a tool's registry of kinds (`register(name, depth, adapter=)`), with `parse` and `check_stack` for profiles, `order` (outermost first), `chain`, `locate` (where a case's failure starts). `LayerAdapter` (`request_headers`, `served_by`), `HeaderServedBy`, `AnswersItself`. `LayerLocator`: a run hook writing `layers.json`. The `Layered` protocol (`name`, `kind`, `behind`). See [Profiles: Layers](../../docs/profiles.md#layers). |
 
 ### Results, reports and comparison
 
@@ -110,6 +112,7 @@ comparison, publication and notification itself.
 | A check | a function taking a `Context` | `@REGISTRY.case(...)` in your tool |
 | A profile schema | dataclasses and a `load` function using `Problems` | your tool's `run` command |
 | A protocol client | any class; record exchanges with `RunDir.append_jsonl` | your tool's state object |
+| A layer kind | `LayerKinds.register(...)`, and a `LayerAdapter` where calling it differs | your tool's `LayerKinds`; `kind:` in profiles |
 | A preflight check | a callable returning `Problem`s | `Session(checks=...)` |
 | Run behaviour | a `RunHooks` subclass | `Session(hooks=...)` |
 | A notification channel | a class with `name` and `send(report)` | `PLUGINS.notifiers`, or the `va.notifiers` entry point |

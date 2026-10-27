@@ -63,7 +63,12 @@ Then use it where it applies; here, the client:
 
 ```python
 self._clients[target.name] = RecordingClient(
-    self.run, target.base_url, token=token, timeout=target.request_timeout_s
+    self.run,
+    target.base_url,
+    token=token,
+    timeout=target.request_timeout_s,
+    layer=target,
+    adapter=KINDS.adapter(target),
 )
 ```
 

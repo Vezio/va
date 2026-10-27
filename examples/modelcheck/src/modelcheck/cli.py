@@ -15,6 +15,8 @@ from pathlib import Path
 from va import (
     App,
     ExitCode,
+    LayerKinds,
+    LayerLocator,
     RunOptions,
     Session,
     UsageError,
@@ -30,6 +32,7 @@ from va.settings import Key
 from . import __version__
 from .cases import REGISTRY
 from .client import RecordingClient
+from .layers import KINDS
 from .profile import Profile, Target, load
 
 PROG = "modelcheck"
@@ -50,7 +53,12 @@ class State:
             if target.name not in self._clients:
                 token = REDACTOR.secret_from_env(target.key_env) if target.key_env else None
                 self._clients[target.name] = RecordingClient(
-                    self.run, target.base_url, token=token, timeout=30
+                    self.run,
+                    target.base_url,
+                    token=token,
+                    timeout=30,
+                    layer=target,
+                    adapter=KINDS.adapter(target),
                 )
             return self._clients[target.name]
 
@@ -103,7 +111,7 @@ class RunCommand:
             summary_path=options.summary,
             notifiers=options.notifiers,
             skip_classes=app.skip_classes,
-            hooks=options.hooks(),
+            hooks=[*options.hooks(), LayerLocator(profile.targets)],
             workers=options.workers,
             case_timeout_s=options.case_timeout_s,
         ).execute()
@@ -127,15 +135,28 @@ class ProfileCommand:
                 f"{profile.name}: valid, {len(profile.targets)} target(s), digest {profile.digest}"
             )
             return ExitCode.OK
+        emit("stack: " + _stack(profile))
         for t in profile.targets:
             caps = ", ".join(sorted(t.capabilities)) or "none"
-            emit(f"{t.name}  (${t.base_url_env}; model {t.model}; capabilities: {caps})")
+            emit("")
+            emit(f"{t.name}  ({t.kind}; ${t.base_url_env}; model {t.model}; capabilities: {caps})")
             for case in REGISTRY.select():
                 missing = sorted(case.needs - t.capabilities)
                 state = f"skip: undeclared ({', '.join(missing)})" if missing else "run"
                 variants = "" if case.variants == ("",) else f" x{len(case.variants)}"
                 emit(f"  {case.case_id:<30}{variants:<4} {state}")
         return ExitCode.OK
+
+
+def _stack(profile: Profile) -> str:
+    """Each chain of layers, from the client inwards: `gateway (proxy) -> engine (engine)`."""
+    inner = {t.behind for t in profile.targets if t.behind}
+    chains = [
+        " -> ".join(f"{t.name} ({t.kind})" for t in LayerKinds.chain(profile.targets, top.name))
+        for top in profile.targets
+        if top.name not in inner
+    ]
+    return "; ".join(chains)
 
 
 def build_app() -> App:

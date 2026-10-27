@@ -18,14 +18,15 @@ demo/local/run.sh
 ### Overview
 
 The script requires no external service, network access or credentials. It starts a simulated
-OpenAI-compatible serving stack on free local ports: an **engine**, and a **gateway** in front
-of it that authenticates requests and forwards them. It then verifies the stack with
+OpenAI-compatible serving stack on free local ports: an **engine**; a **router** in front of it,
+which picks an engine for each request and names it in a response header; and a **gateway** in
+front of the router, which authenticates requests. It then verifies the stack with
 [`modelcheck`](../examples/modelcheck).
 
-The profile, [`stack.yaml`](../examples/modelcheck/profiles/stack.yaml), declares both layers and
-the behaviour expected of each: the model served, the status returned for an unknown model, a
-latency budget per layer, and that only the gateway requires an API key. The following checks
-run against each layer:
+The profile, [`stack.yaml`](../examples/modelcheck/profiles/stack.yaml), declares the three
+layers, each with its kind and the layer it is behind, and the behaviour expected of each: the
+model served, the status returned for an unknown model, a latency budget per layer, and that only
+the gateway requires an API key. The following checks run against each layer, outermost first:
 
 | Check | Verifies that the layer |
 |---|---|
@@ -35,30 +36,34 @@ run against each layer:
 | `chat.latency` | responds within its declared latency budget; runs exclusively, never concurrently with other checks |
 | `stream.well_formed` | streams valid chunks with a single finish reason, terminated by `data: [DONE]` |
 | `errors.unknown_model` | rejects an unknown model with its declared status, in a JSON error envelope |
-| `auth.rejects_bad_key` | rejects an invalid key; runs on the gateway and is skipped on the engine, which does not declare authentication |
+| `auth.rejects_bad_key` | rejects an invalid key; runs on the gateway and is skipped on the router and engine, which do not declare authentication |
 
 ### Procedure
 
 The script performs two runs:
 
-1. **Baseline.** The stack is healthy. All checks pass, the engine's authentication check is
-   skipped with its reason recorded, and the run is archived to `demo/local/out/archive/` as the
-   nightly baseline.
-2. **Regression.** The stack restarts with a gateway defect: streamed responses no longer end with
-   `data: [DONE]`, which leaves clients waiting indefinitely. `stream.well_formed` fails on the
-   gateway and passes on the engine, isolating the defect to the gateway, and the comparison
-   with the baseline reports it as the single regression.
+1. **Baseline.** The stack is healthy. All checks pass, the authentication check is skipped
+   behind the gateway with its reason recorded, and the run is archived to
+   `demo/local/out/archive/` as the nightly baseline.
+2. **Regression.** The stack restarts with a router defect: it strips token usage from the
+   completions it forwards, which breaks billing and quotas downstream. `chat.usage_adds_up`
+   fails at the router and at the gateway in front of it, and passes at the engine behind it.
+   The run places the defect at the router (the gateway only passes it on), and the comparison
+   with the baseline reports the regression on both affected layers.
 
 ### Expected results
 
 ```
-  case                             gateway   engine
+  case                          gateway  router   engine   starts at
   ...
-  stream.well_formed               FAIL      pass
+  chat.usage_adds_up            FAIL     FAIL     pass     router
 
   compared with last night:
-  regression: gateway stream.well_formed: pass -> fail
+  regression: gateway chat.usage_adds_up: pass -> fail
+  regression: router chat.usage_adds_up: pass -> fail
 ```
+
+Where each failure starts is also written to the run's `layers.json`, and logged during the run.
 
 The script prints the location of each run's HTML report, which lists every check with its
 recorded observations. `demo/local/out/` contains both run directories and the archive. The
@@ -72,7 +77,8 @@ The simulated stack supports additional defects, each covered by the `modelcheck
 
 ```sh
 .venv/bin/python examples/modelcheck/tests/fake_stack.py --defect gateway_error_status
-GATEWAY_URL=http://127.0.0.1:8400 ENGINE_URL=http://127.0.0.1:8401 GATEWAY_TOKEN=demo-gateway-key \
+GATEWAY_URL=http://127.0.0.1:8400 ROUTER_URL=http://127.0.0.1:8401 \
+ENGINE_URL=http://127.0.0.1:8402 GATEWAY_TOKEN=demo-gateway-key \
   .venv/bin/modelcheck run --profile examples/modelcheck/profiles/stack.yaml
 ```
 

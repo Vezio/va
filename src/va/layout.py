@@ -24,6 +24,7 @@ class RunFile(StrEnum):
     HTML = "report.html"  # opt-in
     JUNIT = "junit.xml"  # opt-in
     METRICS = "metrics.prom"  # opt-in
+    LAYERS = "layers.json"  # where each failure starts, for a stack declared as layers
     MANIFEST = "MANIFEST.json"  # every other file hashed; written and published last
 
 
@@ -33,6 +34,7 @@ class Schema(StrEnum):
     MANIFEST = "va.manifest/1"
     COMPARISON = "va.comparison/1"
     REPORT = "va.report/1"
+    LAYERS = "va.layers/1"
 
 
 class ArchiveKey(StrEnum):
