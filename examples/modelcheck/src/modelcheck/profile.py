@@ -1,26 +1,28 @@
-"""The modelcheck profile: an OpenAI-compatible serving stack, declared layer by layer.
+"""Loading and validation of modelcheck profiles, which describe a serving stack per layer.
+
+Example profile:
 
     name: demo-stack
-    model: demo-model              # defaults for every target...
-    max_latency_ms: 800
+    model: demo-model              # Default for every target.
+    max_latency_ms: 800            # Default for every target; a target may override it.
     targets:
       - name: gateway
-        kind: proxy                # proxy, router or engine: see layers.py
-        behind: router             # the target this layer forwards to
-        base_url_env: GATEWAY_URL  # a variable's name, never the URL
-        key_env: GATEWAY_TOKEN     # a variable's name, never the key
+        kind: proxy                # One of proxy, router or engine (see layers.py).
+        behind: router             # The target this layer forwards to.
+        base_url_env: GATEWAY_URL  # The name of the variable holding the URL.
+        key_env: GATEWAY_TOKEN     # The name of the variable holding the key.
         capabilities: [models, chat, stream, auth]
-        max_latency_ms: 1500       # ...which a target may override
+        max_latency_ms: 1500
         expect:
-          unknown_model_status: 404  # what a correct layer answers
+          unknown_model_status: 404  # The status a correct layer returns.
 
-Targets are layers: each has a kind, and names the target it is behind. They are validated as a
-stack (no cycle, no layer in front of an outer kind) and run outermost first, whatever order the
-file lists them in.
+Each target is a layer with a kind and, optionally, the name of the target it is behind. The
+targets are validated as a stack, which must contain no cycles and no layer in front of a kind
+that is further out. They run outermost first, regardless of the order in the file.
 
-A profile declares what a **correct** stack does, per layer; the run measures it. When a layer
-differs, the case fails and the difference is the finding. Do not edit a declaration to make a
-run pass.
+A profile declares the behaviour of a correct stack for each layer, and the run measures the
+deployed stack against it. When a layer behaves differently, the case fails and the difference
+is reported as a finding. Declarations should not be edited to make a run pass.
 """
 
 from __future__ import annotations
@@ -52,7 +54,12 @@ EXPECT_KEYS = ("unknown_model_status", "bad_key_status")
 
 @dataclass(frozen=True)
 class Expect:
-    """Behaviour declared for one layer: what a correct one answers."""
+    """Responses that a correct layer is declared to return.
+
+    Attributes:
+        unknown_model_status: The status for a request that names an unknown model.
+        bad_key_status: The status for a request with an invalid API key.
+    """
 
     unknown_model_status: int = 404
     bad_key_status: int = 401
@@ -60,6 +67,20 @@ class Expect:
 
 @dataclass(frozen=True)
 class Target:
+    """One layer of the stack, as declared in the profile.
+
+    Attributes:
+        name: The target name, unique within the profile.
+        kind: The layer kind: proxy, router or engine.
+        behind: The name of the target this layer forwards to, if any.
+        base_url_env: The name of the environment variable that holds the base URL.
+        key_env: The name of the environment variable that holds the API key, if any.
+        capabilities: The capabilities the layer declares, which select the cases that run.
+        model: The model the layer serves.
+        max_latency_ms: The latency budget for a completion, in milliseconds.
+        expect: The responses a correct layer returns.
+    """
+
     name: str
     kind: str
     behind: str | None
@@ -72,11 +93,21 @@ class Target:
 
     @property
     def base_url(self) -> str:
+        """The base URL from the environment, without a trailing slash, or an empty string."""
         return (profile.resolve_env(self.base_url_env) or "").rstrip("/")
 
 
 @dataclass(frozen=True)
 class Profile:
+    """A validated profile.
+
+    Attributes:
+        name: The profile name.
+        targets: The targets, ordered outermost first.
+        digest: The digest of the profile data, which is independent of the file format.
+        source: The file the profile was loaded from.
+    """
+
     name: str
     targets: tuple[Target, ...]
     digest: str
@@ -84,7 +115,17 @@ class Profile:
 
 
 def load(path: Path) -> Profile:
-    """Read and validate a profile; every problem is reported at once (exit 2)."""
+    """Read and validate a profile, reporting all problems together.
+
+    Args:
+        path: The profile file, in YAML, TOML or JSON.
+
+    Returns:
+        The validated profile, with its targets ordered outermost first.
+
+    Raises:
+        ProfileError: If the profile has any problems. The CLI exits with status 2.
+    """
     data = profile.load(path)
     p = Problems()
     p.unknown_keys(data, TOP_KEYS)
@@ -112,6 +153,20 @@ def load(path: Path) -> Profile:
 def _target(
     p: Problems, raw: Any, at: str, model: str | None, latency: int | None
 ) -> Target | None:
+    """Validate one raw target entry and build a `Target` from it.
+
+    Problems are recorded on `p` rather than raised.
+
+    Args:
+        p: The problem collector for the whole profile.
+        raw: The raw target entry.
+        at: The entry's path in the profile, used in problem messages.
+        model: The profile's default model, if any.
+        latency: The profile's default latency budget, in milliseconds.
+
+    Returns:
+        The target, or None if the entry is not a table.
+    """
     if not isinstance(raw, dict):
         p.add(at, "must be a table")
         return None

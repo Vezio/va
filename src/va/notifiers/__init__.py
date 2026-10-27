@@ -1,7 +1,7 @@
-"""Notifications: tell people (or systems) how a run ended, through any channel.
+"""Notifications that report how a run ended, to people or to other systems.
 
-A notifier is anything with `name` and `send(report)`. It is chosen by a **spec** string,
-`<kind>:<target>`, so the channel is configuration, not code:
+A notifier is any object with a `name` attribute and a `send(report)` method. It is selected
+by a spec string of the form `<kind>:<target>`, so the channel is a matter of configuration:
 
     slack:env:SLACK_WEBHOOK          Slack incoming webhook; URL read from a variable
     webhook:https://hooks.example/x  the RunReport as JSON, for any system that takes a POST
@@ -10,12 +10,12 @@ A notifier is anything with `name` and `send(report)`. It is chosen by a **spec*
     file:/var/log/runs.jsonl         append the report as one JSON line
     log:                             the report's title and counts as primary output
 
-`env:NAME` reads the target from a variable and registers it for redaction, because webhook
-URLs are credentials. Several specs can be given; each is delivered independently and a
-failure in one does not stop the others.
+A target of the form `env:NAME` is read from the named environment variable and registered
+for redaction, because webhook URLs are credentials. Several specs can be given. Each is
+delivered independently, and a failure in one does not prevent delivery to the others.
 
-A new channel (Teams, Discord, email, PagerDuty, a ticketing system) is one class registered
-under a kind, in code or through the `va.notifiers` entry point group:
+A new channel (Teams, Discord, email, PagerDuty, a ticketing system) is a class registered
+under a kind, either in code or through the `va.notifiers` entry point group:
 
     @PLUGINS.notifiers.register("teams")
     class TeamsNotifier:

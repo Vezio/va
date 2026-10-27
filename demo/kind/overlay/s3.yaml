@@ -1,5 +1,5 @@
-# Where runs are published: an S3-compatible stand-in (moto's server mode), and a Job that
-# creates the bucket. In a real deployment this is your object store.
+# S3-compatible store for published runs (moto in server mode), and a Job that creates the
+# bucket. A real deployment uses its own object store.
 apiVersion: apps/v1
 kind: Deployment
 metadata:

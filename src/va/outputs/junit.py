@@ -1,8 +1,9 @@
-"""junit.xml: the run in the format most CI systems render as test results.
+"""Rendering of junit.xml, the test result format that most CI systems display.
 
-One `<testsuite>` per target, one `<testcase>` per case and variant. `fail` is a
-`<failure>`, `error` an `<error>`, `skip` a `<skipped>` whose message names its skip class, and
-each case's recorded checks go to `<system-out>`, so the evidence travels with the verdict.
+The document has one `<testsuite>` per target and one `<testcase>` per case and variant. A
+failed case has a `<failure>` element, an errored case an `<error>` element, and a skipped case
+a `<skipped>` element whose message names the skip class. Each case's recorded checks are
+written to `<system-out>`, so the evidence for a verdict is included alongside it.
 """
 
 from __future__ import annotations
@@ -19,6 +20,14 @@ from ..rundir import RunDir
 
 
 def _checks_text(record: ResultRecord) -> str:
+    """Return a record's checks as plain text, one line per check.
+
+    Args:
+        record: The result record whose checks are rendered.
+
+    Returns:
+        Lines giving each check's status, name, observed value and expected value.
+    """
     return "\n".join(
         f"{'ok    ' if c.ok else 'NOT OK'} {c.name}: observed {json.dumps(c.observed, default=str)}"
         f", expected {json.dumps(c.expected, default=str)}"
@@ -27,6 +36,15 @@ def _checks_text(record: ResultRecord) -> str:
 
 
 def render_junit(outcome: RunOutcome, records: list[ResultRecord]) -> str:
+    """Render a run's results as a JUnit XML document.
+
+    Args:
+        outcome: The run outcome, used to name the top-level `<testsuites>` element.
+        records: The run's result records.
+
+    Returns:
+        The XML document, including its declaration.
+    """
     by_target: dict[str, list[ResultRecord]] = defaultdict(list)
     for record in records:
         by_target[record.target].append(record)
@@ -67,12 +85,24 @@ def render_junit(outcome: RunOutcome, records: list[ResultRecord]) -> str:
 
 
 class JUnitReport(RunHooks):
-    """Writes junit.xml into the run directory (published with it), and to `copy_to`."""
+    """A run hook that writes junit.xml into the run directory and optionally copies it.
+
+    The file in the run directory is published with the run.
+
+    Args:
+        copy_to: An optional additional path to write a redacted copy of the document to.
+    """
 
     def __init__(self, copy_to: Path | None = None):
         self.copy_to = copy_to
 
     def on_finish(self, run: RunDir, outcome: RunOutcome) -> None:
+        """Render the document from the run's results and write it.
+
+        Args:
+            run: The finished run directory.
+            outcome: The run outcome.
+        """
         text = render_junit(outcome, run.results())
         run.write_text(RunFile.JUNIT, text)
         if self.copy_to:

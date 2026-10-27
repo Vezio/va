@@ -1,5 +1,5 @@
-# For whatever runs trigger.sh (a person, a CI job, a rollout hook). Unbound here: the overlay
-# binds it to the caller's identity. Read the CronJob, create Jobs; nothing else.
+# Role for callers of trigger.sh (a person, a CI job or a rollout hook). The overlay binds it to
+# the caller's identity. It grants read access to the CronJob and permission to create Jobs.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:

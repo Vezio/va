@@ -4,12 +4,12 @@
 #   demo/kind/up.sh            create the cluster (if needed), deploy, run once, show results
 #   demo/kind/down.sh          delete the cluster
 #
-# It builds the runner image, loads it into kind, applies demo/kind/overlay (deploy/base plus
-# a target service and an S3-compatible store), starts a run with deploy/trigger.sh, waits for
-# it, and reads the published run back from the bucket. Works with docker or podman.
+# Builds the runner image, loads it into kind, applies demo/kind/overlay (deploy/base plus a
+# target service and an S3-compatible store), starts a run with deploy/trigger.sh, waits for it
+# to finish, and reads the published run from the bucket. Supports docker and podman.
 #
-# Safety: every kubectl call uses demo/kind/.kubeconfig, which holds only this cluster's
-# context. Your own kubeconfig and clusters are never read or changed.
+# All kubectl calls use demo/kind/.kubeconfig, which contains only this cluster's context. The
+# user's own kubeconfig and clusters are not read or modified.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 

@@ -1,5 +1,5 @@
-# Generic base: no cluster-identifiable detail. Real overlays live with the system's own
-# manifests, not in this repository.
+# Generic base containing no cluster-specific values. Overlays for real systems belong with
+# those systems' manifests rather than in this repository.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 labels:

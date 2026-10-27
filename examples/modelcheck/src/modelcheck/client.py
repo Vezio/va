@@ -1,11 +1,12 @@
-"""A recording HTTP client: every exchange a case makes is kept as evidence.
+"""HTTP client that records every exchange a case makes as evidence in the run directory.
 
-Raw HTTP on purpose. An SDK normalises away much of what a test exists to see (malformed
-bodies, wrong statuses, headers), so cases speak HTTP and record exactly what came back.
-Requests are never retried here: a retry hides the failure under test.
+The client uses plain HTTP rather than an OpenAI SDK, because an SDK normalises details that the
+cases need to observe, such as malformed bodies, unexpected statuses and headers. Requests are
+not retried, so that a transient failure is reported rather than hidden.
 
-Each client is bound to one layer, and its kind's adapter: the adapter's headers go on every
-request, and which component answered (`served_by`) is recorded with every exchange.
+Each client is bound to one layer and to the adapter for that layer's kind. The adapter's
+headers are added to every request, and the component that answered (`served_by`) is recorded
+with every exchange.
 """
 
 from __future__ import annotations
@@ -24,6 +25,19 @@ from va.rundir import RunDir
 
 @dataclass
 class Exchange:
+    """One HTTP request and the response or error it produced.
+
+    Attributes:
+        method: The HTTP method of the request.
+        url: The full request URL.
+        status: The response status code, or None if no response was received.
+        headers: The response headers.
+        body: The raw response body.
+        elapsed_ms: The time from sending the request to reading the response, in milliseconds.
+        error: The connection error, if the request did not receive a response.
+        served_by: The component that answered, as reported by the layer adapter.
+    """
+
     method: str
     url: str
     status: int | None
@@ -34,10 +48,26 @@ class Exchange:
     served_by: str | None = None
 
     def json(self) -> Any:
+        """Decode the response body as UTF-8 JSON.
+
+        Returns:
+            The decoded JSON value.
+        """
         return json.loads(self.body.decode("utf-8"))
 
 
 class RecordingClient:
+    """HTTP client bound to one layer that appends every exchange to `exchanges.jsonl`.
+
+    Args:
+        run: The run directory that receives the exchange records.
+        base_url: The base URL that request paths are appended to.
+        token: The bearer token sent when a request has no Authorization header.
+        timeout: The request timeout, in seconds.
+        layer: The layer this client talks to, used by the adapter.
+        adapter: The adapter for the layer's kind. Defaults to a plain `LayerAdapter`.
+    """
+
     def __init__(
         self,
         run: RunDir,
@@ -64,6 +94,21 @@ class RecordingClient:
         body: bytes | None = None,
         case_id: str = "",
     ) -> Exchange:
+        """Send a request once and record the exchange in the run directory.
+
+        Connection errors are captured on the returned exchange rather than raised. The request
+        is not retried.
+
+        Args:
+            method: The HTTP method.
+            path: The path appended to the client's base URL.
+            headers: Additional request headers, which override the adapter's headers.
+            body: The raw request body.
+            case_id: The ID of the case making the request, stored with the record.
+
+        Returns:
+            The recorded exchange.
+        """
         url = self.base_url + path
         sent = {
             **(self.adapter.request_headers(self.layer) if self.layer else {}),
@@ -95,7 +140,7 @@ class RecordingClient:
                     "status": exchange.status,
                     "elapsed_ms": exchange.elapsed_ms,
                     "served_by": exchange.served_by,
-                    "request_headers": sent,  # append_jsonl redacts every value
+                    "request_headers": sent,  # append_jsonl redacts the header values.
                     "response_headers": exchange.headers,
                     "response_body": exchange.body[:4096].decode("utf-8", "replace"),
                     "error": exchange.error,
@@ -105,14 +150,41 @@ class RecordingClient:
         return exchange
 
     def get(self, path: str, **kwargs) -> Exchange:
+        """Send a GET request.
+
+        Args:
+            path: The path appended to the client's base URL.
+            **kwargs: Keyword arguments passed to `request`.
+
+        Returns:
+            The recorded exchange.
+        """
         return self.request("GET", path, **kwargs)
 
     def post_json(self, path: str, body: Any, **kwargs) -> Exchange:
+        """Send a POST request with a JSON body.
+
+        Args:
+            path: The path appended to the client's base URL.
+            body: The value to encode as the JSON request body.
+            **kwargs: Keyword arguments passed to `request`. Any `headers` are merged over the
+                JSON content type.
+
+        Returns:
+            The recorded exchange.
+        """
         headers = {"content-type": "application/json", **kwargs.pop("headers", {})}
         return self.request("POST", path, body=json.dumps(body).encode(), headers=headers, **kwargs)
 
 
 def sse_events(exchange: Exchange) -> list[str]:
-    """The `data:` payloads of a Server-Sent Events body, in order (`[DONE]` included)."""
+    """Return the `data:` payloads of a Server-Sent Events response body, in order.
+
+    Args:
+        exchange: The exchange whose body is parsed.
+
+    Returns:
+        The payload of each `data:` line, including the final `[DONE]` marker if present.
+    """
     text = exchange.body.decode("utf-8", "replace")
     return [line[len("data:") :].strip() for line in text.splitlines() if line.startswith("data:")]

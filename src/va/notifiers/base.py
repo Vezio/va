@@ -1,4 +1,4 @@
-"""The notifier protocol, the registry of kinds, and delivery to several at once."""
+"""The notifier protocol, notifier spec parsing, and delivery to several notifiers."""
 
 from __future__ import annotations
 
@@ -15,22 +15,46 @@ log = get_logger("notify")
 
 
 class NotifierError(Exception):
-    """A notifier could not deliver, or its spec is invalid."""
+    """Raised when a notifier cannot deliver a report or its spec is invalid."""
 
 
 class Notifier(Protocol):
+    """A channel that delivers a run report.
+
+    Attributes:
+        name: A short name for the channel, used in logs and delivery results.
+    """
+
     name: str
 
     def send(self, report: RunReport) -> None:
-        """Deliver the report, retrying within bounds; raise on final failure."""
+        """Deliver a report, retrying within bounds, and raise if delivery finally fails.
+
+        Args:
+            report: The run report to deliver.
+        """
         ...
 
 
-NotifierFactory = Callable[[str], Notifier]  # target string -> notifier
+NotifierFactory = Callable[[str], Notifier]  # Maps a target string to a notifier.
 
 
 def resolve_target(target: str, environ: Mapping[str, str] | None = None) -> str:
-    """`env:NAME` reads the variable (registered as a secret); anything else is literal."""
+    """Resolve a notifier target, reading `env:NAME` targets from the environment.
+
+    A value read from the environment is registered with the redactor as a secret. Any other
+    target is returned unchanged.
+
+    Args:
+        target: The target part of a notifier spec.
+        environ: An optional environment mapping to read from instead of `os.environ`.
+
+    Returns:
+        The resolved target.
+
+    Raises:
+        NotifierError: If an `env:NAME` target names a variable that is not set.
+    """
     if target.startswith("env:"):
         name = target[4:]
         try:
@@ -41,7 +65,20 @@ def resolve_target(target: str, environ: Mapping[str, str] | None = None) -> str
 
 
 def parse_spec(spec: str) -> Notifier:
-    """`<kind>:<target>` to a notifier. The target may be empty (`log:`)."""
+    """Create a notifier from a `<kind>:<target>` spec.
+
+    The target may be empty, as in `log:`.
+
+    Args:
+        spec: The notifier spec.
+
+    Returns:
+        The notifier built by the factory registered for the kind.
+
+    Raises:
+        NotifierError: If the spec is malformed, the kind is unknown, or the target cannot be
+            resolved.
+    """
     kind, sep, target = spec.strip().partition(":")
     if not sep or not kind:
         raise NotifierError(
@@ -55,7 +92,17 @@ def parse_spec(spec: str) -> Notifier:
 
 
 def parse_specs(specs: Iterable[str]) -> list[Notifier]:
-    """Several specs; also accepts comma-separated lists (as from one environment variable)."""
+    """Create notifiers from several specs.
+
+    Each item may itself be a comma-separated list, as when the specs come from a single
+    environment variable. Empty entries are ignored.
+
+    Args:
+        specs: The notifier specs.
+
+    Returns:
+        The notifiers, in the order given.
+    """
     out = []
     for spec in specs:
         out += [parse_spec(s) for s in spec.split(",") if s.strip()]
@@ -64,19 +111,39 @@ def parse_specs(specs: Iterable[str]) -> list[Notifier]:
 
 @dataclass(frozen=True)
 class Delivery:
+    """The result of delivering a report through one notifier.
+
+    Attributes:
+        notifier: The notifier's name.
+        ok: Whether delivery succeeded.
+        error: The redacted error message when delivery failed, otherwise None.
+    """
+
     notifier: str
     ok: bool
     error: str | None = None
 
 
 def notify_all(notifiers: Sequence[Notifier], report: RunReport) -> list[Delivery]:
-    """Send to every notifier; never raises. One channel failing does not stop the others."""
+    """Send a report through every notifier and collect the results.
+
+    The function does not raise. A failure in one notifier is logged and recorded, and does
+    not prevent delivery through the others.
+
+    Args:
+        notifiers: The notifiers to deliver through.
+        report: The run report to deliver.
+
+    Returns:
+        One delivery result per notifier, in order.
+    """
     results = []
     for notifier in notifiers:
         try:
             notifier.send(report)
             results.append(Delivery(notifier.name, True))
-        except Exception as exc:  # noqa: BLE001 -- reported, and turned into exit 5 upstream
+        except Exception as exc:  # noqa: BLE001
+            # The error is reported, and the caller maps it to exit code 5.
             error = REDACTOR.scrub(str(exc))
             log.error("notification via %s failed: %s", notifier.name, error)
             results.append(Delivery(notifier.name, False, error))

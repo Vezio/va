@@ -1,5 +1,8 @@
-"""Errors: the status the profile declares for each layer, in a JSON error envelope a client
-can read."""
+"""Error handling cases.
+
+These cases check that each layer returns the status its profile declares, inside a JSON error
+envelope that clients can parse.
+"""
 
 from __future__ import annotations
 
@@ -10,9 +13,12 @@ from . import REGISTRY
 
 @REGISTRY.case("errors.unknown_model", needs={"chat"})
 def unknown_model(ctx: Context) -> None:
-    """A model that does not exist is refused with the status this layer declares
-    (expect.unknown_model_status), in an OpenAI error envelope: {"error": {"message", "type"}}.
-    One case, one declaration per layer: where layers disagree, the columns show which one."""
+    """Verify that a request for an unknown model is rejected with the declared status.
+
+    The expected status is the layer's `expect.unknown_model_status`, and the body must be an
+    OpenAI error envelope of the form {"error": {"message", "type"}}. Each layer declares its own
+    expected status, so when layers behave differently the results show which layer differs.
+    """
     t = ctx.target
     exchange = ctx.state.client(t).post_json(
         "/v1/chat/completions",

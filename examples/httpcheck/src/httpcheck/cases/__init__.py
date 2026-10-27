@@ -1,8 +1,13 @@
-"""httpcheck's cases. Each module registers into REGISTRY on import; add a module, import it
-here, and prove the new case can fail against the fake server (tests/fake_server.py)."""
+"""Test cases for httpcheck.
+
+Each module registers its cases into `REGISTRY` when it is imported. To add a case, create a
+module, import it here, and add a test that shows the case failing against the matching defect
+in `tests/fake_server.py`.
+"""
 
 from va.runner import CaseRegistry
 
 REGISTRY = CaseRegistry()
 
-from . import api, health  # noqa: E402, F401  -- registration on import
+# Importing the modules registers their cases.
+from . import api, health  # noqa: E402, F401

@@ -1,5 +1,5 @@
-# Shared by up.sh, test.sh and down.sh. Every kubectl call goes through k(), which pins this
-# demo's own kubeconfig and context: nothing here can reach another cluster.
+# Shared functions for up.sh, test.sh and down.sh. All kubectl calls go through k(), which uses
+# the demo's dedicated kubeconfig and context so that no other cluster is affected.
 # shellcheck shell=bash
 
 CLUSTER="${CLUSTER:-va-demo}"
@@ -13,7 +13,7 @@ fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 ok() { printf 'ok: %s\n' "$*"; }
 k() { kubectl --kubeconfig "$KUBECONFIG" --context "kind-$CLUSTER" "$@"; }
 
-# Sets ENGINE (docker or podman) for the scripts that build and load images.
+# Set ENGINE to the available container engine (docker or podman).
 choose_engine() {
   export ENGINE
   if command -v docker >/dev/null && docker info >/dev/null 2>&1; then
@@ -27,7 +27,7 @@ choose_engine() {
   fi
 }
 
-# Run Python in a short-lived pod with the runner image and the demo's S3 settings.
+# Run a Python snippet in a short-lived pod using the runner image and the demo's S3 settings.
 in_cluster_python() {
   k -n "$NAMESPACE" delete pod py --ignore-not-found --wait=true >/dev/null
   k -n "$NAMESPACE" run py --image="$IMAGE" --restart=Never --quiet \
@@ -40,8 +40,8 @@ in_cluster_python() {
   k -n "$NAMESPACE" delete pod py --wait=false >/dev/null
 }
 
-# The published outcome of a run, as "<exit label> <passed> <failed> <errors> <skipped>
-# <baseline runs>", read back from the bucket.
+# Print the published outcome of a run, read from the bucket, as
+# "<exit label> <passed> <failed> <errors> <skipped> <baseline runs>".
 published_outcome() {
   in_cluster_python "
 import json
@@ -57,7 +57,7 @@ print(o.exit_label, c.passed, c.failed, c.errored, c.skipped, len(base))
 "
 }
 
-# The run id a job wrote, from its log.
+# Print the run ID that a job wrote to its log.
 run_id_of() {
   k -n "$NAMESPACE" logs "job/$1" | sed -n 's#.*published to s3://results/nightly/demo/\([^/]*\)/.*#\1#p' | tail -1
 }

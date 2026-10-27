@@ -17,6 +17,9 @@ existing tool is marked **changed**.
   profiles needs a `kind`; layers in front of another name it in `behind`. Its fake stack has a
   router, and a router defect (`router_drops_usage`); the local demo now finds that one, and
   places it at the router.
+- Every module, class, function and method is documented with Google-style docstrings, enforced
+  by ruff's pydocstyle rules in this repository and in tools created with `scripts/new-app.sh`.
+  Comments throughout the code, scripts and manifests were revised for clarity.
 - `scripts/new-app.sh --local` installs the framework checkout in editable mode. It used to
   depend on a `file://` URL, and pip reused a cached wheel of an older framework in its place.
 

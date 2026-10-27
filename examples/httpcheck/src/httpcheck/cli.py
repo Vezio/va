@@ -1,10 +1,13 @@
-"""`httpcheck`: an example app built on va. Copy it to start a new tool.
+"""Command-line interface for httpcheck, an example application built on va.
 
-httpcheck profile validate PROFILE     offline: every problem with its path
-httpcheck profile show PROFILE         what would run, and what would skip and why
-httpcheck run --profile PROFILE        preflight, run, compare, publish, notify
-httpcheck job --profile PROFILE        unattended: the same, surviving a crashed run
-httpcheck publish|compare|notify RUN   the built-ins, over a finished run directory
+This package is the template for new tools. The commands are:
+
+    httpcheck profile validate PROFILE     Validate a profile offline and list each problem.
+    httpcheck profile show PROFILE         Show which cases would run or skip, and why.
+    httpcheck run --profile PROFILE        Run preflight, the cases, compare, publish, notify.
+    httpcheck job --profile PROFILE        Run unattended in a child process, so that results
+                                           are published even if the run crashes.
+    httpcheck publish|compare|notify RUN   Run a built-in step over a finished run directory.
 """
 
 from __future__ import annotations
@@ -37,8 +40,15 @@ PROG = "httpcheck"
 
 
 class State:
-    """What every case shares: the profile and one recording client per target. Shared across
-    worker threads with --workers, so creating a client is locked."""
+    """State shared by all cases: the profile and one recording client per target.
+
+    With `--workers` the state is shared across threads, so client creation is guarded by
+    a lock.
+
+    Args:
+        profile: The loaded profile.
+        run: Run directory that the clients record exchanges into.
+    """
 
     def __init__(self, profile: Profile, run: RunDir):
         self.profile = profile
@@ -47,6 +57,17 @@ class State:
         self._lock = threading.Lock()
 
     def client(self, target: Target) -> RecordingClient:
+        """Return the recording client for a target, creating it on first use.
+
+        The target's token is read with `REDACTOR.secret_from_env` so that it is registered
+        for redaction before it is used.
+
+        Args:
+            target: The target to return a client for.
+
+        Returns:
+            The client for the target.
+        """
         with self._lock:
             if target.name not in self._clients:
                 token = REDACTOR.secret_from_env(target.key_env) if target.key_env else None
@@ -55,6 +76,16 @@ class State:
 
 
 def preflight_checks(profile: Profile, options: RunOptions) -> list[preflight.Check]:
+    """Build the preflight checks that must pass before any case runs.
+
+    Args:
+        profile: The loaded profile.
+        options: Parsed run options.
+
+    Returns:
+        Checks for required environment variables, health endpoint reachability and, when a
+        destination is set, that the destination is writable.
+    """
     checks: list[preflight.Check] = []
     for t in profile.targets:
         checks.append(preflight.env_set(t.base_url_env, kind="base_url"))
@@ -68,6 +99,12 @@ def preflight_checks(profile: Profile, options: RunOptions) -> list[preflight.Ch
 
 
 def _profile_arg(parser: argparse.ArgumentParser, app: App) -> None:
+    """Add the `--profile` option, defaulting to the profile setting.
+
+    Args:
+        parser: Parser to add the option to.
+        app: Application whose settings provide the default.
+    """
     parser.add_argument(
         "--profile",
         type=Path,
@@ -77,16 +114,36 @@ def _profile_arg(parser: argparse.ArgumentParser, app: App) -> None:
 
 
 class RunCommand:
+    """The `run` command, which checks the targets a profile declares."""
+
     name, help, passthrough = "run", "check the targets a profile declares", False
 
     def add_arguments(self, parser: argparse.ArgumentParser, app: App) -> None:
+        """Add the profile option and the standard run options.
+
+        Args:
+            parser: Parser for this command.
+            app: The application.
+        """
         _profile_arg(parser, app)
         add_run_arguments(parser, app)
 
     def run(self, args: argparse.Namespace, app: App) -> int:
+        """Load the profile, select the cases and execute a session.
+
+        Args:
+            args: Parsed command-line arguments.
+            app: The application.
+
+        Returns:
+            The session exit code.
+
+        Raises:
+            UsageError: If no profile is given.
+        """
         if not args.profile:
             raise UsageError("--profile (or HTTPCHECK_PROFILE) is required")
-        profile = load(Path(args.profile))  # a ProfileError exits 2 through App.main
+        profile = load(Path(args.profile))  # App.main maps ProfileError to exit code 2.
         cases = REGISTRY.select()
         options = RunOptions.from_args(args, app)
         return Session(
@@ -113,9 +170,17 @@ class RunCommand:
 
 
 class ProfileCommand:
+    """The `profile` command, which validates or shows a profile without network access."""
+
     name, help, passthrough = "profile", "validate or show a profile, offline", False
 
     def add_arguments(self, parser: argparse.ArgumentParser, app: App) -> None:
+        """Add the action and profile path arguments.
+
+        Args:
+            parser: Parser for this command.
+            app: The application.
+        """
         parser.add_argument(
             "action",
             choices=("validate", "show"),
@@ -124,6 +189,15 @@ class ProfileCommand:
         parser.add_argument("profile", type=Path, help="the profile file")
 
     def run(self, args: argparse.Namespace, app: App) -> int:
+        """Validate the profile, or list each target's cases and whether they would run.
+
+        Args:
+            args: Parsed command-line arguments.
+            app: The application.
+
+        Returns:
+            `ExitCode.OK`. An invalid profile raises `ProfileError` from `load`.
+        """
         profile = load(args.profile)
         if args.action == "validate":
             emit(
@@ -143,6 +217,11 @@ class ProfileCommand:
 
 
 def build_app() -> App:
+    """Build the httpcheck application with its commands and the va built-ins.
+
+    Returns:
+        The configured application.
+    """
     app = App(
         PROG,
         version=__version__,
@@ -153,4 +232,5 @@ def build_app() -> App:
 
 
 def main() -> None:
+    """Run the httpcheck command line and exit with its status."""
     run_app(build_app())

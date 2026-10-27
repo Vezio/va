@@ -1,6 +1,9 @@
-"""modelcheck against the fake stack: a healthy stack passes; each defect fails the case that
-exists to catch it on the layer that has it and the layers in front of it, never behind it, and
-the run says which layer it starts at."""
+"""Tests that run modelcheck against the fake stack.
+
+A healthy stack passes. Each defect fails its corresponding case on the layer that has the
+defect and on the layers in front of it, but not on the layers behind it, and the run reports
+the layer where the failure starts.
+"""
 
 from __future__ import annotations
 
@@ -15,15 +18,28 @@ from va.redact import REDACTOR
 from modelcheck.cli import build_app
 
 PROFILE = Path(__file__).parent.parent / "profiles" / "stack.yaml"
-LAYERS = ("gateway", "router", "engine")  # outermost first
+LAYERS = ("gateway", "router", "engine")  # Ordered outermost first.
 BEHIND = {"gateway": ("router", "engine"), "router": ("engine",), "engine": ()}
 
 
 @pytest.fixture
 def stack_env(monkeypatch):
+    """Provide a function that starts a fake stack and points the profile's variables at it.
+
+    The function takes the defects to enable and returns the started stack. All stacks started
+    during the test are closed, and the redactor is cleared, at teardown.
+    """
     stacks: list[FakeStack] = []
 
     def start(*defects: str) -> FakeStack:
+        """Start a fake stack with the given defects and set the environment for it.
+
+        Args:
+            *defects: The defects to enable.
+
+        Returns:
+            The started stack.
+        """
         stack = FakeStack(set(defects))
         stacks.append(stack)
         monkeypatch.setenv("GATEWAY_URL", stack.gateway_url)
@@ -39,13 +55,30 @@ def stack_env(monkeypatch):
 
 
 def run(tmp_path: Path, *extra: str, name: str = "run") -> tuple[int, Path]:
+    """Run modelcheck with the example profile.
+
+    Args:
+        tmp_path: The directory that holds the run directory.
+        *extra: Additional command-line arguments.
+        name: The name of the run directory.
+
+    Returns:
+        The exit code and the run directory.
+    """
     run_dir = tmp_path / name
     code = build_app().main(["run", "--profile", str(PROFILE), "--run-dir", str(run_dir), *extra])
     return code, run_dir
 
 
 def verdicts(run_dir: Path) -> dict[tuple[str, str], str]:
-    """(target, case[variant]) -> verdict."""
+    """Read the verdicts from a run directory.
+
+    Args:
+        run_dir: The run directory.
+
+    Returns:
+        A mapping from (target, case ID with optional `[variant]`) to the verdict.
+    """
     out = {}
     for line in (run_dir / "results.jsonl").read_text().splitlines():
         r = json.loads(line)
@@ -55,7 +88,14 @@ def verdicts(run_dir: Path) -> dict[tuple[str, str], str]:
 
 
 def located(run_dir: Path) -> set[tuple[str, str, bool]]:
-    """(case[variant], layer, confirmed) for each failure start in layers.json."""
+    """Read the located failure starts from a run directory's `layers.json`.
+
+    Args:
+        run_dir: The run directory.
+
+    Returns:
+        A set of (case ID with optional `[variant]`, layer, confirmed) tuples.
+    """
     data = json.loads((run_dir / "layers.json").read_text())
     return {
         (f["case_id"] + (f"[{f['variant']}]" if f["variant"] else ""), f["layer"], f["confirmed"])
@@ -64,11 +104,12 @@ def located(run_dir: Path) -> set[tuple[str, str, bool]]:
 
 
 def test_a_healthy_stack_passes_and_auth_skips_behind_the_gateway(stack_env, tmp_path):
+    """Verify that a healthy stack passes and the auth case skips on layers behind the gateway."""
     stack_env()
     code, run_dir = run(tmp_path)
     assert code == ExitCode.OK
     v = verdicts(run_dir)
-    assert len(v) == 3 * 8  # 7 cases (one with two variants) on three layers
+    assert len(v) == 3 * 8  # Seven cases, one with two variants, on three layers.
     skipped = {key for key, verdict in v.items() if verdict == "skip"}
     # Only the gateway declares auth.
     assert skipped == {("router", "auth.rejects_bad_key"), ("engine", "auth.rejects_bad_key")}
@@ -78,6 +119,7 @@ def test_a_healthy_stack_passes_and_auth_skips_behind_the_gateway(stack_env, tmp
 
 
 def test_layers_run_outermost_first_and_record_who_answered(stack_env, tmp_path):
+    """Verify that layers run outermost first and exchanges record the component that answered."""
     stack_env()
     _, run_dir = run(tmp_path, "-k", "models")
     targets = [json.loads(line)["target"] for line in (run_dir / "results.jsonl").open()]
@@ -86,8 +128,8 @@ def test_layers_run_outermost_first_and_record_who_answered(stack_env, tmp_path)
         json.loads(line)["url"].rsplit("/v1", 1)[0]: json.loads(line)["served_by"]
         for line in (run_dir / "exchanges.jsonl").open()
     }
-    # The router names the engine it picked; the gateway passes that through; the engine is
-    # itself.
+    # The router names the engine it selected and the gateway passes that name through. The
+    # engine reports itself.
     assert sorted(served.values()) == ["engine", "engine-0", "engine-0"]
     stack = json.loads((run_dir / "layers.json").read_text())["stack"]
     assert stack == [
@@ -110,23 +152,26 @@ def test_layers_run_outermost_first_and_record_who_answered(stack_env, tmp_path)
     ],
 )
 def test_each_defect_fails_its_case_on_its_layer(stack_env, tmp_path, defect, layer, case):
+    """Verify that each defect fails its case on its own layer and is located at that layer."""
     stack_env(defect)
     code, run_dir = run(tmp_path)
     assert code == ExitCode.FAILURES
     v = verdicts(run_dir)
     assert v[(layer, case)] == "fail"
     for inner in BEHIND[layer]:
-        # The layers behind are healthy: they pass (or skip, for auth) the same case.
+        # The layers behind are healthy, so they pass the same case, or skip it for auth.
         assert v.get((inner, case), "skip") in ("pass", "skip"), f"{defect} leaked into {inner}"
-    # The defect is placed at its own layer, even when the layers in front of it fail too. It is
-    # confirmed there when the layer behind it ran the case and passed; where that layer skipped
-    # (auth, behind the gateway), the run says "this layer, or behind it".
+    # The defect is located at its own layer, even when the layers in front of it also fail. The
+    # location is confirmed when the layer behind it ran the case and passed. When that layer
+    # skipped the case, as for auth behind the gateway, the location is reported as this layer
+    # or a layer behind it.
     confirmed = not BEHIND[layer] or v[(BEHIND[layer][0], case)] == "pass"
     assert (case, layer, confirmed) in located(run_dir)
     assert {where for _, where, _ in located(run_dir)} == {layer}
 
 
 def test_a_defect_fails_every_layer_in_front_of_it(stack_env, tmp_path):
+    """Verify that a router defect fails the router and the gateway but not the engine."""
     stack_env("router_drops_usage")
     _, run_dir = run(tmp_path, "-k", "chat.usage_adds_up")
     assert verdicts(run_dir) == {
@@ -137,8 +182,11 @@ def test_a_defect_fails_every_layer_in_front_of_it(stack_env, tmp_path):
 
 
 def test_latency_is_judged_against_each_layers_own_budget(stack_env, tmp_path):
-    """The engine takes 1s: over its 800ms budget, within the router's 1200ms and the gateway's
-    1500ms."""
+    """Verify that latency is judged against each layer's own budget.
+
+    The slow engine takes one second, which exceeds its 800 ms budget but is within the
+    router's 1200 ms and the gateway's 1500 ms budgets.
+    """
     stack_env("engine_slow")
     code, run_dir = run(tmp_path, "-k", "chat.latency")
     v = verdicts(run_dir)
@@ -151,6 +199,7 @@ def test_latency_is_judged_against_each_layers_own_budget(stack_env, tmp_path):
 
 
 def test_comparison_names_the_regression_and_its_layer(stack_env, tmp_path):
+    """Verify that comparison with a baseline run reports the regression and its layer."""
     archive = f"file://{tmp_path / 'archive'}"
     stack_env()
     code, _ = run(tmp_path, "--remote-output", archive, "--label", "trigger=nightly", name="night1")
@@ -166,12 +215,14 @@ def test_comparison_names_the_regression_and_its_layer(stack_env, tmp_path):
 
 
 def test_workers_keep_exclusive_cases_alone_and_results_complete(stack_env, tmp_path):
+    """Verify that a run with parallel workers passes and records a result for every case."""
     stack_env()
     code, run_dir = run(tmp_path, "--workers", "4")
     assert code == ExitCode.OK and len(verdicts(run_dir)) == 24
 
 
 def test_preflight_names_an_unreachable_layer(monkeypatch, tmp_path):
+    """Verify that preflight reports an unreachable layer and the run exits with PREFLIGHT."""
     for name in ("GATEWAY_URL", "ROUTER_URL", "ENGINE_URL"):
         monkeypatch.setenv(name, "http://127.0.0.1:9")
     monkeypatch.setenv("GATEWAY_TOKEN", TOKEN)
@@ -182,6 +233,7 @@ def test_preflight_names_an_unreachable_layer(monkeypatch, tmp_path):
 
 
 def test_a_broken_profile_reports_every_problem_and_exits_2(tmp_path):
+    """Verify that a broken profile reports every problem and validation exits with status 2."""
     from va import ProfileError
 
     from modelcheck.profile import load
@@ -205,13 +257,14 @@ def test_a_broken_profile_reports_every_problem_and_exits_2(tmp_path):
 @pytest.mark.parametrize(
     "line, problem",
     [
-        # The YAML pitfalls in docs/profiles.md: each is caught with its path.
+        # The YAML pitfalls described in docs/profiles.md, each reported with its path.
         ("model: 1.10", "model: must be str, not float"),
         ("model: no", "model: must be str, not bool"),
         ("model: 2024-05-01", "model: must be str, not date"),
     ],
 )
 def test_yaml_implicit_types_are_reported(tmp_path, line, problem):
+    """Verify that values YAML implicitly converts to non-string types are reported."""
     from va import ProfileError
 
     from modelcheck.profile import load
@@ -227,7 +280,7 @@ def test_yaml_implicit_types_are_reported(tmp_path, line, problem):
 
 
 def test_the_same_profile_loads_from_toml_and_json(tmp_path):
-    """YAML is the default; TOML and JSON describe the same profile, with the same digest."""
+    """Verify that the same profile in YAML, TOML and JSON produces the same digest."""
     import json
 
     import yaml
@@ -280,6 +333,7 @@ def test_the_same_profile_loads_from_toml_and_json(tmp_path):
     ],
 )
 def test_a_stack_that_cannot_exist_is_refused(tmp_path, targets, problem):
+    """Verify that an invalid stack of layers is rejected with a problem naming the cause."""
     from va import ProfileError
 
     from modelcheck.profile import load
@@ -292,6 +346,7 @@ def test_a_stack_that_cannot_exist_is_refused(tmp_path, targets, problem):
 
 
 def test_layers_are_ordered_whatever_order_the_file_lists_them(tmp_path):
+    """Verify that targets are ordered outermost first regardless of their order in the file."""
     from modelcheck.profile import load
 
     path = tmp_path / "stack.yaml"

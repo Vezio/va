@@ -1,13 +1,17 @@
-"""Built-in commands, and the standard flags of an app's `run` command.
+"""Built-in commands and the standard flags of an application's `run` command.
 
-    publish  RUN_DIR    publish a finished run directory (manifest last)
-    compare  RUN_DIR    compare a run with earlier published runs
-    notify   RUN_DIR    send a run's report through any notifiers
-    job                 one unattended run: `<app> run` as a child, then compare, publish
-                        (even after a crash) and notify. What a CronJob or CI runs.
+The built-in commands are:
 
-Every flag's default comes from `App.settings` (`<PREFIX>_<KEY>`), so a flag and its variable
-are one option. An app's `run` command calls `add_run_arguments` and `RunOptions.from_args`.
+    publish  RUN_DIR    Publish a finished run directory, uploading the manifest last.
+    compare  RUN_DIR    Compare a run with earlier published runs.
+    notify   RUN_DIR    Send a run's report through the configured notifiers.
+    job                 Perform one unattended run: start `<app> run` as a child process, then
+                        compare, publish and notify, also after a crash. This is the command
+                        a CronJob or CI workflow runs.
+
+Each flag takes its default from `App.settings` (`<PREFIX>_<KEY>`), so a flag and its
+environment variable configure the same option. An application's `run` command calls
+`add_run_arguments` and `RunOptions.from_args`.
 """
 
 from __future__ import annotations
@@ -42,12 +46,33 @@ log = get_logger("commands")
 
 
 class Arguments(Protocol):
-    """An argparse parser or argument group: anything flags can be added to."""
+    """Object that flags can be added to, such as an argparse parser or argument group."""
 
-    def add_argument(self, *args: Any, **kwargs: Any) -> Any: ...
+    def add_argument(self, *args: Any, **kwargs: Any) -> Any:
+        """Add an argument, with the same signature as `argparse.ArgumentParser.add_argument`.
+
+        Args:
+            *args: Positional arguments for `add_argument`.
+            **kwargs: Keyword arguments for `add_argument`.
+
+        Returns:
+            The created action.
+        """
+        ...
 
 
 def parse_labels(values: list[str]) -> dict[str, str]:
+    """Parse `KEY=VALUE` items into a dictionary.
+
+    Args:
+        values: Items in the form `KEY=VALUE`. The value may be empty.
+
+    Returns:
+        The parsed pairs. A later item overrides an earlier one with the same key.
+
+    Raises:
+        UsageError: If an item has no `=` or an empty key.
+    """
     labels = {}
     for item in values:
         key, sep, value = item.partition("=")
@@ -58,6 +83,17 @@ def parse_labels(values: list[str]) -> dict[str, str]:
 
 
 def notifiers_from(specs: list[str]) -> list[Notifier]:
+    """Build notifiers from their specifications.
+
+    Args:
+        specs: Notifier specifications in the form `KIND:TARGET`.
+
+    Returns:
+        The notifiers, in the order given.
+
+    Raises:
+        UsageError: If a specification is invalid.
+    """
     try:
         return parse_specs(specs)
     except NotifierError as exc:
@@ -65,6 +101,19 @@ def notifiers_from(specs: list[str]) -> list[Notifier]:
 
 
 def _float_setting(app: App, key: Key, default: float | None) -> float | None:
+    """Read a numeric setting and report an invalid value as a usage error.
+
+    Args:
+        app: Application whose settings are read.
+        key: Setting key.
+        default: Value returned when the setting is unset.
+
+    Returns:
+        The parsed value, or `default`.
+
+    Raises:
+        UsageError: If the value is not a number.
+    """
     try:
         return app.settings.get_float(key, default)
     except ValueError as exc:
@@ -72,7 +121,14 @@ def _float_setting(app: App, key: Key, default: float | None) -> float | None:
 
 
 def add_destination_arguments(parser: Arguments, app: App, *, reading: bool = False) -> None:
-    """--remote-output and --group. `reading` words them for commands that read the archive."""
+    """Add the `--remote-output` and `--group` flags.
+
+    Args:
+        parser: Parser or argument group to add the flags to.
+        app: Application whose settings provide the defaults.
+        reading: True to word the help for commands that read the archive rather than
+            publish to it.
+    """
     s = app.settings
     parser.add_argument(
         "--remote-output",
@@ -95,6 +151,12 @@ def add_destination_arguments(parser: Arguments, app: App, *, reading: bool = Fa
 
 
 def add_notify_arguments(parser: Arguments, app: App) -> None:
+    """Add the repeatable `--notify` flag.
+
+    Args:
+        parser: Parser or argument group to add the flag to.
+        app: Application whose settings name the corresponding environment variable.
+    """
     s = app.settings
     parser.add_argument(
         "--notify",
@@ -107,12 +169,27 @@ def add_notify_arguments(parser: Arguments, app: App) -> None:
 
 
 def notify_specs(args: argparse.Namespace, app: App) -> list[str]:
-    """The notifier specs: --notify when given, else the environment's."""
+    """Return the notifier specifications for a command.
+
+    Args:
+        args: Parsed arguments.
+        app: Application whose settings are read.
+
+    Returns:
+        The `--notify` values if any were given, otherwise the specifications from the
+        environment.
+    """
     return list(args.notify) if args.notify else app.settings.get_list(Key.NOTIFY)
 
 
 def add_baseline_arguments(parser: Arguments, app: App, *, switch: bool = True) -> None:
-    """The comparison flags. `switch` adds --compare (for commands where comparing is optional)."""
+    """Add the flags that select baselines for a comparison.
+
+    Args:
+        parser: Parser or argument group to add the flags to.
+        app: Application whose settings provide the defaults.
+        switch: True to also add `--compare`, for commands where the comparison is optional.
+    """
     s = app.settings
     if switch:
         parser.add_argument(
@@ -145,16 +222,29 @@ def add_baseline_arguments(parser: Arguments, app: App, *, switch: bool = True) 
 
 
 def baseline_from(args: argparse.Namespace) -> Baseline | None:
+    """Build the baseline selection from parsed comparison flags.
+
+    Args:
+        args: Parsed arguments that include `--compare` and the baseline flags.
+
+    Returns:
+        The baseline selection, or None if `--compare` was not given.
+    """
     if not args.compare:
         return None
     return Baseline(args.compare_window, args.baseline_label or None, args.baseline)
 
 
-# ------------------------------------------------------------------ an app's run command
-
-
 def add_run_arguments(parser: argparse.ArgumentParser, app: App) -> None:
-    """The flags every app's `run` shares, so `job`, CI and people drive every app alike."""
+    """Add the standard flags of an application's `run` command.
+
+    All applications share these flags, so that `job`, CI workflows and interactive users
+    drive every application in the same way.
+
+    Args:
+        parser: Parser of the `run` command.
+        app: Application whose settings provide the defaults.
+    """
     s = app.settings
     out = parser.add_argument_group("output")
     out.add_argument(
@@ -225,6 +315,19 @@ def add_run_arguments(parser: argparse.ArgumentParser, app: App) -> None:
 
 
 def _int_setting(app: App, key: Key, default: int | None) -> int | None:
+    """Read an integer setting and report an invalid value as a usage error.
+
+    Args:
+        app: Application whose settings are read.
+        key: Setting key.
+        default: Value returned when the setting is unset.
+
+    Returns:
+        The parsed value, or `default`.
+
+    Raises:
+        UsageError: If the value is not a whole number.
+    """
     try:
         return app.settings.get_int(key, default)
     except ValueError as exc:
@@ -232,7 +335,14 @@ def _int_setting(app: App, key: Key, default: int | None) -> int | None:
 
 
 def add_execution_arguments(parser: Arguments, app: App) -> None:
-    """How cases run. The defaults: one at a time, no timeout, no budget."""
+    """Add the flags that control how cases are executed.
+
+    By default cases run one at a time, without a per-case timeout and without a run budget.
+
+    Args:
+        parser: Parser or argument group to add the flags to.
+        app: Application whose settings name the corresponding environment variables.
+    """
     s = app.settings
     parser.add_argument(
         "--workers",
@@ -261,7 +371,14 @@ def add_execution_arguments(parser: Arguments, app: App) -> None:
 
 
 def add_output_arguments(parser: Arguments, app: App) -> None:
-    """Opt-in run outputs, written into the run directory and published with it."""
+    """Add the flags for optional run outputs.
+
+    The outputs are written into the run directory and published with it.
+
+    Args:
+        parser: Parser or argument group to add the flags to.
+        app: Application whose settings provide the defaults.
+    """
     parser.add_argument(
         "--html",
         nargs="?",
@@ -290,7 +407,23 @@ def add_output_arguments(parser: Arguments, app: App) -> None:
 
 @dataclass(frozen=True)
 class RunOptions:
-    """The parsed standard run flags, typed."""
+    """Typed values of the standard run flags.
+
+    Attributes:
+        run: Run directory created for the run.
+        destination: Publication location, or None to keep results local.
+        group: Archive partition, or None if not set.
+        summary: File the Markdown summary is appended to, or None.
+        labels: Labels attached to the run.
+        links: Named links shown in the report and notifications.
+        selector: Case selection from `-k`, `--tag` and `--exclude-tag`.
+        budget_s: Time in seconds after which no new case is started, or None.
+        notifiers: Notifiers that receive the report.
+        baseline: Baseline selection for a comparison, or None if no comparison was requested.
+        workers: Number of cases run concurrently.
+        case_timeout_s: Time in seconds after which a case is abandoned, or None.
+        outputs: Hooks that write the optional outputs requested by flags.
+    """
 
     run: RunDir
     destination: str | None
@@ -307,13 +440,28 @@ class RunOptions:
     outputs: list[RunHooks] = field(default_factory=list)
 
     def hooks(self) -> list[RunHooks]:
-        """The default progress log plus the outputs the flags asked for."""
+        """Return the run hooks: the default progress log followed by the requested outputs."""
         return [ProgressLog(), *self.outputs]
 
     @classmethod
     def from_args(cls, args: argparse.Namespace, app: App) -> RunOptions:
-        """Validates everything before creating the run directory: a usage error leaves no
-        directory behind."""
+        """Validate the parsed flags and create the run directory.
+
+        All validation happens before the run directory is created, so that a usage error
+        does not leave a directory behind. When logging is configured, a redacted run.log is
+        added to the run directory and published with it.
+
+        Args:
+            args: Arguments parsed by a parser prepared with `add_run_arguments`.
+            app: Application whose settings supply values for unset flags.
+
+        Returns:
+            The run options.
+
+        Raises:
+            UsageError: If a label, link, notifier, worker count, timeout or destination is
+                invalid.
+        """
         labels = parse_labels(args.label)
         links = parse_labels(args.link)
         notifiers = notifiers_from(notify_specs(args, app))
@@ -345,7 +493,7 @@ class RunOptions:
         else:
             run = RunDir.create(args.work_dir)
         if app.logging:
-            app.logging.add_file(run.file("run.log"))  # redacted, published with the run
+            app.logging.add_file(run.file("run.log"))
         return cls(
             run=run,
             destination=args.remote_output,
@@ -365,10 +513,16 @@ class RunOptions:
         )
 
 
-# ------------------------------------------------------------------ built-ins
-
-
 class PublishCommand:
+    """Built-in `publish` command, which publishes a finished run directory.
+
+    Attributes:
+        name: Subcommand name.
+        help: One-line help text.
+        passthrough: False, because the command accepts no unknown arguments.
+        description: Full description shown in the command's help.
+    """
+
     name, help, passthrough = "publish", "publish a finished run directory (manifest last)", False
     description = (
         "Publish a finished run directory to --remote-output, under <group>/<run id>/, with "
@@ -376,10 +530,28 @@ class PublishCommand:
     )
 
     def add_arguments(self, parser, app):
+        """Add the run directory argument and the destination flags.
+
+        Args:
+            parser: Subparser for this command.
+            app: Application the command belongs to.
+        """
         parser.add_argument("run_dir", type=Path, help="the run directory to publish")
         add_destination_arguments(parser, app)
 
     def run(self, args, app) -> int:
+        """Publish the run directory and record the publication in its outcome.
+
+        Args:
+            args: Parsed arguments.
+            app: Application the command belongs to.
+
+        Returns:
+            OK if the run was delivered, otherwise NOT_DELIVERED.
+
+        Raises:
+            UsageError: If the destination or the group is not set.
+        """
         if not (args.remote_output and args.group):
             raise UsageError("publish needs --remote-output and --group (or their variables)")
         run = RunDir(args.run_dir.resolve())
@@ -393,6 +565,15 @@ class PublishCommand:
 
 
 class CompareCommand:
+    """Built-in `compare` command, which compares a run with earlier published runs.
+
+    Attributes:
+        name: Subcommand name.
+        help: One-line help text.
+        passthrough: False, because the command accepts no unknown arguments.
+        description: Full description shown in the command's help.
+    """
+
     name, help, passthrough = "compare", "compare a run with earlier published runs", False
     description = (
         "Compare a run directory with earlier runs published in the same group, and write "
@@ -400,6 +581,12 @@ class CompareCommand:
     )
 
     def add_arguments(self, parser, app):
+        """Add the run directory argument and the archive and baseline flags.
+
+        Args:
+            parser: Subparser for this command.
+            app: Application the command belongs to.
+        """
         parser.add_argument("run_dir", type=Path, help="the run directory to compare")
         add_destination_arguments(parser, app, reading=True)
         add_baseline_arguments(parser, app, switch=False)
@@ -410,6 +597,19 @@ class CompareCommand:
         )
 
     def run(self, args, app) -> int:
+        """Compare the run with its baselines and print the comparison.
+
+        Args:
+            args: Parsed arguments.
+            app: Application the command belongs to.
+
+        Returns:
+            FAILURES if `--fail-on-regression` was given and a regression was found,
+            otherwise OK.
+
+        Raises:
+            UsageError: If the archive location or the group is not set.
+        """
         if not (args.remote_output and args.group):
             raise UsageError("compare needs --remote-output and --group (or their variables)")
         baseline = Baseline(args.compare_window, args.baseline_label or None, args.baseline)
@@ -422,14 +622,41 @@ class CompareCommand:
 
 
 class NotifyCommand:
+    """Built-in `notify` command, which sends a finished run's report through notifiers.
+
+    Attributes:
+        name: Subcommand name.
+        help: One-line help text.
+        passthrough: False, because the command accepts no unknown arguments.
+        description: Full description shown in the command's help.
+    """
+
     name, help, passthrough = "notify", "send a run's report through notifiers", False
     description = "Send a finished run's report through one or more notifiers."
 
     def add_arguments(self, parser, app):
+        """Add the run directory argument and the `--notify` flag.
+
+        Args:
+            parser: Subparser for this command.
+            app: Application the command belongs to.
+        """
         parser.add_argument("run_dir", type=Path, help="the finished run directory")
         add_notify_arguments(parser, app)
 
     def run(self, args, app) -> int:
+        """Send the run's report, including a stored comparison if there is one.
+
+        Args:
+            args: Parsed arguments.
+            app: Application the command belongs to.
+
+        Returns:
+            OK if every notifier delivered the report, otherwise NOT_DELIVERED.
+
+        Raises:
+            UsageError: If no notifier is configured or the run has no outcome.json.
+        """
         notifiers = notifiers_from(notify_specs(args, app))
         if not notifiers:
             raise UsageError("no notifier: give --notify KIND:TARGET")
@@ -442,14 +669,34 @@ class NotifyCommand:
 
 
 def _comparison(run: RunDir) -> Comparison | None:
+    """Load the comparison stored in a run directory.
+
+    Args:
+        run: Run directory to read.
+
+    Returns:
+        The comparison, or None if the run has no comparison.json.
+    """
     body = run.read_json(RunFile.COMPARISON)
     return Comparison.from_dict(body) if body else None
 
 
 class JobCommand:
-    """One unattended run. `<app> run` is a child process so this one outlives it: if the
-    run is OOM-killed or overruns, the comparison, publication and notification still happen
-    here, and the outcome says `crashed`."""
+    """Built-in `job` command, which performs one unattended run.
+
+    `<app> run` is started as a child process so that this process outlives it. If the run is
+    killed, for example for running out of memory, or exceeds its budget, the comparison,
+    publication and notification are still performed here, and the outcome is labelled
+    `crashed`.
+
+    Attributes:
+        name: Subcommand name.
+        help: One-line help text.
+        passthrough: True, because unknown arguments are forwarded to `run`.
+        description: Full description shown in the command's help.
+        OWNED: Flags that `job` sets on the child itself and that therefore cannot be passed
+            through.
+    """
 
     name, help, passthrough = "job", "one unattended run: run, compare, publish, notify", True
     description = (
@@ -460,6 +707,12 @@ class JobCommand:
     OWNED = ("--run-dir", "--remote-output", "--work-dir", "--notify", "--compare", "--group")
 
     def add_arguments(self, parser, app):
+        """Add the flags for the work directory, destinations, budget, comparison and notifiers.
+
+        Args:
+            parser: Subparser for this command.
+            app: Application the command belongs to.
+        """
         s = app.settings
         parser.add_argument(
             "--work-dir",
@@ -497,6 +750,23 @@ class JobCommand:
         add_notify_arguments(parser, app)
 
     def run(self, args, app) -> int:
+        """Run the child process, then compare, publish and notify.
+
+        The delivery settings are removed from the child's environment, so that only this
+        process publishes and notifies. If the child crashes or exits without writing an
+        outcome, an outcome labelled `crashed` is written from the results it recorded.
+
+        Args:
+            args: Parsed arguments, including the arguments passed through to `run`.
+            app: Application the command belongs to.
+
+        Returns:
+            The run's exit code combined with the delivery status.
+
+        Raises:
+            UsageError: If a passed-through argument is one that `job` sets itself, or a
+                destination is not supported.
+        """
         passthrough = list(args.passthrough)
         owned = [a for a in passthrough if a.split("=", 1)[0] in self.OWNED]
         if owned:
@@ -506,8 +776,9 @@ class JobCommand:
         budget = args.budget or _float_setting(app, Key.RUN_BUDGET, None) or DEFAULTS.job_budget_s
 
         run_path = (args.work_dir / new_run_id()).resolve()
-        # The run stops starting cases `grace` seconds before the job would stop it, so it ends
-        # on its own and still writes its outcome; the job only has to step in if it hangs.
+        # The child stops starting cases `grace` seconds before the job would stop it. The child
+        # therefore normally ends by itself and writes its outcome, and the job only needs to
+        # intervene if the child hangs.
         child_budget = max(budget - args.grace, budget / 2)
         child = [
             *app.child_argv("run"),
@@ -517,8 +788,8 @@ class JobCommand:
             f"{child_budget:g}",
             *passthrough,
         ]
-        # The job delivers; the child only runs. Its environment loses the delivery settings,
-        # so it neither publishes nor notifies a second time.
+        # Only the job publishes and notifies. The delivery settings are removed from the
+        # child's environment so that the child does not deliver the results a second time.
         delivery = {
             app.settings.name(k)
             for k in (Key.RESULTS_URI, Key.FALLBACK_URI, Key.NOTIFY, Key.RUN_BUDGET)
@@ -528,7 +799,8 @@ class JobCommand:
 
         run = RunDir.at(run_path)
         outcome = run.outcome()
-        if code is None or outcome is None:  # crashed, or died before writing its outcome
+        # The child crashed, or exited before writing its outcome.
+        if code is None or outcome is None:
             outcome = outcome or RunOutcome(run_id=run.run_id, tool=app.prog)
             outcome.record(run.results())
             outcome.finish(ExitCode.INTERNAL, label="crashed")
@@ -543,7 +815,8 @@ class JobCommand:
         if baseline and destination:
             try:
                 comparison = compare_with_archive(run, destination, group, baseline)
-            except Exception as exc:  # noqa: BLE001 -- advisory
+            except Exception as exc:  # noqa: BLE001
+                # The comparison is advisory.
                 log.warning("comparison failed: %s", exc)
         if destination:
             outcome.publication = deliver(run, destination, group)
@@ -558,6 +831,18 @@ class JobCommand:
 
     @staticmethod
     def _destination(args) -> str | None:
+        """Choose the first usable destination from `--remote-output` and `--fallback-output`.
+
+        Args:
+            args: Parsed arguments.
+
+        Returns:
+            The first destination that is usable in this environment, or None if neither is,
+            in which case results stay local.
+
+        Raises:
+            UsageError: If a destination uses an unsupported scheme.
+        """
         for uri in (args.remote_output, args.fallback_output):
             if not uri:
                 continue
@@ -573,10 +858,24 @@ class JobCommand:
 
     @staticmethod
     def _child(argv: list[str], env: dict[str, str], budget: float, grace: float) -> int | None:
-        """The child's exit status, INTERRUPTED if it was stopped, or None if it crashed (a
-        signal, or a status outside the vocabulary)."""
+        """Run the child process within the budget and return its exit code.
+
+        When the budget is spent or the job is interrupted, the child receives SIGTERM and, if
+        it has not exited after `grace` seconds, SIGKILL.
+
+        Args:
+            argv: Command line of the child process.
+            env: Environment of the child process.
+            budget: Time in seconds the child may run before it is stopped.
+            grace: Time in seconds between SIGTERM and SIGKILL.
+
+        Returns:
+            The child's exit code, INTERRUPTED if it was stopped, or None if it crashed, that
+            is, it was killed by a signal or exited with a status that is not an `ExitCode`.
+        """
         log.info("job: %s", " ".join(argv))
-        process = subprocess.Popen(argv, env=env)  # noqa: S603 -- our own entry point
+        # The command is this tool's own entry point.
+        process = subprocess.Popen(argv, env=env)  # noqa: S603
         try:
             status = process.wait(timeout=budget)
         except (subprocess.TimeoutExpired, KeyboardInterrupt):
@@ -595,5 +894,5 @@ class JobCommand:
 
 
 def builtin_commands() -> list[Command]:
-    """The commands `App.add_builtins` adds."""
+    """Return new instances of the built-in commands registered by `App.add_builtins`."""
     return [PublishCommand(), CompareCommand(), NotifyCommand(), JobCommand()]

@@ -1,4 +1,7 @@
-"""va's own tests: no network beyond localhost, no cluster."""
+"""Unit tests for the va core.
+
+The tests use no network beyond localhost and do not require a cluster.
+"""
 
 from __future__ import annotations
 
@@ -37,14 +40,13 @@ from va.sinks import FileSink, UnsupportedDestination, sink_for
 
 @pytest.fixture(autouse=True)
 def _clean():
+    """Clear the process-wide redactor after each test."""
     yield
     REDACTOR.clear()
 
 
-# ------------------------------------------------------------------ exit codes
-
-
 def test_delivery_never_masks_a_verdict():
+    """Verify that a failed delivery changes the exit code only when the verdict is OK."""
     assert combine(ExitCode.OK, False) is ExitCode.NOT_DELIVERED
     assert combine(ExitCode.FAILURES, False) is ExitCode.FAILURES
     assert combine(ExitCode.PREFLIGHT, False) is ExitCode.PREFLIGHT
@@ -53,16 +55,15 @@ def test_delivery_never_masks_a_verdict():
     assert ExitCode.parse(3) is ExitCode.PREFLIGHT and ExitCode.parse(137) is None
 
 
-# ------------------------------------------------------------------ redaction and logging
-
-
 def test_secret_is_scrubbed_from_every_stream(tmp_path):
+    """Verify that a registered secret is redacted from stderr, stdout and log files."""
     REDACTOR.add("s3cr3t-value-xyz")
     err, out = io.StringIO(), io.StringIO()
     setup = configure(app="myapp", level="DEBUG", stderr=err, stdout=out)
     log_file = tmp_path / "debug.log"
     handler = setup.add_file(log_file)
-    # Child loggers of both trees: a filter on a logger (not a handler) would miss these.
+    # Log through child loggers of both trees. A filter attached to a logger rather
+    # than to a handler would not see these records.
     get_logger("myapp.deep.child").debug("token=%s", "s3cr3t-value-xyz")
     get_logger("publish").warning("Authorization: Bearer abcdefghijklmnop")
     try:
@@ -77,6 +78,7 @@ def test_secret_is_scrubbed_from_every_stream(tmp_path):
 
 
 def test_primary_output_survives_quiet_logging():
+    """Verify that primary output is written when the log level suppresses diagnostics."""
     err, out = io.StringIO(), io.StringIO()
     configure(app="myapp", level="ERROR", stderr=err, stdout=out)
     get_logger("myapp.x").info("diagnostic")
@@ -85,18 +87,21 @@ def test_primary_output_survives_quiet_logging():
 
 
 def test_redactor_is_injectable_and_reads_secrets_from_env():
+    """Verify that a separate redactor reads secrets from the environment.
+
+    The process-wide redactor is not affected.
+    """
     mine = Redactor()
     assert mine.secret_from_env("T", environ={"T": "abc123456789"}) == "abc123456789"
     assert mine.scrub("x abc123456789") == "x ***REDACTED***"
-    assert REDACTOR.scrub("x abc123456789") == "x abc123456789"  # the process one is untouched
+    # The process-wide redactor is unchanged.
+    assert REDACTOR.scrub("x abc123456789") == "x abc123456789"
     with pytest.raises(KeyError):
         mine.secret_from_env("UNSET", environ={})
 
 
-# ------------------------------------------------------------------ typed data round-trips
-
-
 def test_records_and_outcomes_round_trip_through_json(tmp_path):
+    """Verify that result records and run outcomes survive a JSON round trip."""
     run = RunDir.create(tmp_path)
     record = ResultRecord(
         run.run_id,
@@ -119,6 +124,7 @@ def test_records_and_outcomes_round_trip_through_json(tmp_path):
 
 
 def test_a_skip_needs_a_class_and_only_a_skip_has_one():
+    """Verify that a skip requires a skip class and other verdicts reject one."""
     with pytest.raises(ValueError):
         ResultRecord("r", "c", Verdict.SKIP)
     with pytest.raises(ValueError):
@@ -126,16 +132,15 @@ def test_a_skip_needs_a_class_and_only_a_skip_has_one():
 
 
 def test_skip_classes_are_immutable_and_extended_by_copy():
+    """Verify that extending skip classes returns a copy and rejects duplicate names."""
     extended = SkipClasses.default().extend(SkipClass("requires_load", "needs a load generator"))
     assert "requires_load" in extended and "requires_load" not in SkipClasses.default()
     with pytest.raises(ValueError):
         extended.extend(SkipClass("requires_load", "something else"))
 
 
-# ------------------------------------------------------------------ run directory
-
-
 def test_manifest_is_last_and_detects_tampering(tmp_path):
+    """Verify that the manifest is written last and reports changed or unlisted files."""
     REDACTOR.add("hunter2-hunter2")
     run = RunDir.create(tmp_path)
     run.write_json("outcome.json", {"note": "key hunter2-hunter2"})
@@ -150,55 +155,71 @@ def test_manifest_is_last_and_detects_tampering(tmp_path):
     assert any("hash differs" in p for p in problems) and any("not listed" in p for p in problems)
 
 
-# ------------------------------------------------------------------ runner
-
-
 @dataclass(frozen=True)
 class T:
+    """Minimal target used by the runner tests.
+
+    Attributes:
+        name: Target name.
+        capabilities: Capabilities the target declares.
+    """
+
     name: str
     capabilities: frozenset[str] = frozenset()
 
 
 def test_runner_verdicts_skips_hooks_and_no_retry(tmp_path, caplog):
+    """Verify that the runner assigns verdicts and skips, calls hooks and does not retry."""
     reg = CaseRegistry()
     calls = {"flaky": 0}
     seen: list[str] = []
 
     class Seen(RunHooks):
+        """Hooks that record the case identifier of each result."""
+
         def on_result(self, run, record):
+            """Record the case identifier of a result."""
             seen.append(record.case_id)
 
     @reg.case("a.pass", tags={"smoke"})
     def _p(ctx):
+        """Pass with a single matching check."""
         ctx.require("one", 1, 1)
 
     @reg.case("a.fail")
     def _f(ctx):
+        """Fail on a status check."""
         ctx.require("status", 500, 200)
 
     @reg.case("a.error")
     def _e(ctx):
+        """Raise an exception so that the case ends in an error."""
         raise ValueError("cannot decide")
 
     @reg.case("a.needs", needs={"gpu"})
     def _n(ctx):
+        """Fail if run, which the missing capability should prevent."""
         ctx.require("never", 0, 1)
 
     @reg.case("a.flaky")
     def _fl(ctx):
+        """Pass only on a second attempt, which would indicate a retry."""
         calls["flaky"] += 1
         ctx.require("first_try", calls["flaky"], 2)
 
     @reg.case("a.empty")
     def _empty(ctx):
+        """Record no checks."""
         pass
 
     @reg.case("a.badskip")
     def _bad(ctx):
+        """Skip with an unregistered skip class."""
         ctx.skip("no_such_class", "why")
 
     @reg.case("a.variants", variants=("x", "y"))
     def _v(ctx):
+        """Pass only for variant x."""
         ctx.require("variant", ctx.variant, "x")
 
     run = RunDir.create(tmp_path)
@@ -210,14 +231,16 @@ def test_runner_verdicts_skips_hooks_and_no_retry(tmp_path, caplog):
     assert got[("a.error", "")].verdict is Verdict.ERROR
     assert (run.path / "evidence/t1/a.error/traceback.txt").is_file()
     assert got[("a.needs", "")].skip_class == "undeclared"
-    assert got[("a.flaky", "")].verdict is Verdict.FAIL and calls["flaky"] == 1  # never retried
-    assert got[("a.badskip", "")].verdict is Verdict.ERROR  # an unknown skip class is a defect
+    # The case is not retried.
+    assert got[("a.flaky", "")].verdict is Verdict.FAIL and calls["flaky"] == 1
+    assert got[("a.badskip", "")].verdict is Verdict.ERROR  # An unknown skip class is an error.
     assert got[("a.variants", "y")].verdict is Verdict.FAIL
     assert "proved nothing" in caplog.text
     assert seen == [r.case_id for r in records] and run.results() == records
 
 
 def test_selector_by_pattern_and_tags():
+    """Verify that cases are selected by identifier pattern, tags and excluded tags."""
     reg = CaseRegistry()
     for cid, tags in (("api.a", {"smoke"}), ("api.b", {"slow"}), ("health.a", {"smoke", "slow"})):
         reg.case(cid, tags=tags)(lambda ctx: None)
@@ -227,10 +250,8 @@ def test_selector_by_pattern_and_tags():
     assert ids(Selector(tags=frozenset({"smoke"}), exclude_tags=frozenset({"slow"}))) == ["api.a"]
 
 
-# ------------------------------------------------------------------ sinks, publish, archive
-
-
 def test_publish_manifest_last_and_partial_runs_are_not_baselines(tmp_path, monkeypatch):
+    """Verify that the manifest is uploaded last and runs without one are not listed."""
     archive = tmp_path / "archive"
     run = RunDir.create(tmp_path / "w")
     run.add_result(ResultRecord(run.run_id, "c", Verdict.PASS))
@@ -248,6 +269,7 @@ def test_publish_manifest_last_and_partial_runs_are_not_baselines(tmp_path, monk
 
 
 def test_unknown_scheme_and_failures_are_recorded_not_raised(tmp_path):
+    """Verify that an unknown scheme is rejected and recorded as a failed delivery."""
     with pytest.raises(UnsupportedDestination, match="known: file, s3"):
         sink_for("ftp://nowhere")
     publication = deliver(RunDir.create(tmp_path), "ftp://nowhere", "g")
@@ -255,6 +277,7 @@ def test_unknown_scheme_and_failures_are_recorded_not_raised(tmp_path):
 
 
 def test_s3_without_credentials_is_skipped(tmp_path, monkeypatch):
+    """Verify that delivery to S3 is skipped when no credentials are configured."""
     for name in (
         "AWS_ACCESS_KEY_ID",
         "AWS_SECRET_ACCESS_KEY",
@@ -268,28 +291,41 @@ def test_s3_without_credentials_is_skipped(tmp_path, monkeypatch):
 
 
 def test_a_sink_plugin_is_one_registration(tmp_path):
+    """Verify that a sink registered as a plugin is used for delivery and archive reads."""
     stored: dict[str, bytes] = {}
 
     class MemorySink:
+        """In-memory sink that stores uploaded files in a dictionary.
+
+        Args:
+            uri: Destination URI the sink was created for.
+        """
+
         def __init__(self, uri):
             self.uri = uri
 
         def unavailable_reason(self):
+            """Return None, because the sink is always available."""
             return None
 
         def write_check(self):
+            """Accept the write check without doing anything."""
             pass
 
         def put(self, local, key):
+            """Store the contents of a local file under a key."""
             stored[key] = local.read_bytes()
 
         def get(self, key):
+            """Return the bytes stored under a key."""
             return stored[key]
 
         def list(self, prefix):
+            """Return the stored keys under a prefix, sorted."""
             return sorted(k for k in stored if k.startswith(prefix + "/"))
 
         def location(self, key):
+            """Return the URI of a stored key."""
             return f"{self.uri}/{key}"
 
     PLUGINS.sinks.register("mem", MemorySink, replace=True)
@@ -300,6 +336,7 @@ def test_a_sink_plugin_is_one_registration(tmp_path):
 
 
 def test_plugin_registry_rejects_shadowing():
+    """Verify that the registry rejects a name that differs only in case."""
     registry: PluginRegistry[int] = PluginRegistry("thing")
     registry.register("a", 1)
     with pytest.raises(ValueError):
@@ -308,14 +345,22 @@ def test_plugin_registry_rejects_shadowing():
         registry.get("b")
 
 
-# ------------------------------------------------------------------ compare
-
-
 def _r(case, verdict, skip_class=None):
+    """Build a result record for the compare tests.
+
+    Args:
+        case: Case identifier.
+        verdict: Verdict value as a string.
+        skip_class: Skip class, required when the verdict is a skip.
+
+    Returns:
+        The result record.
+    """
     return ResultRecord("r", case, Verdict(verdict), target="t", skip_class=skip_class)
 
 
 def test_four_transitions_and_flaky_window():
+    """Verify that compare classifies each transition and detects flaky cases."""
     base1 = [
         _r("reg", "pass"),
         _r("rec", "fail"),
@@ -353,15 +398,14 @@ def test_four_transitions_and_flaky_window():
 
 
 def test_zero_cases_is_never_a_pass():
+    """Verify that a comparison of a run with no cases reports a problem."""
     result = compare([], [("r1", [_r("a", "pass")])])
     assert result.problems and not result.regressed
 
 
-# ------------------------------------------------------------------ kube, retry, profile, settings
-
-
 @pytest.mark.parametrize("verb", ["apply", "delete", "scale", "exec", "patch", "create"])
 def test_kube_refuses_writes(verb):
+    """Verify that the kube client refuses mutating verbs and auth commands other than can-i."""
     with pytest.raises(kube.KubeError, match="read-only"):
         kube.KubeContext(cli="kubectl")._run(verb, "pods")
     with pytest.raises(kube.KubeError, match="can-i"):
@@ -369,9 +413,11 @@ def test_kube_refuses_writes(verb):
 
 
 def test_retry_is_bounded_and_caps_retry_after():
+    """Verify that retries stop after the configured attempts and long waits are refused."""
     attempts = []
 
     def failing():
+        """Record an attempt and raise an OSError."""
         attempts.append(1)
         raise OSError("down")
 
@@ -381,6 +427,7 @@ def test_retry_is_bounded_and_caps_retry_after():
     assert len(attempts) == 3
 
     def long_wait():
+        """Raise a RetryAfter longer than the allowed wait."""
         raise retry.RetryAfter(3600)
 
     with pytest.raises(retry.RetryAfter):
@@ -388,6 +435,7 @@ def test_retry_is_bounded_and_caps_retry_after():
 
 
 def test_problems_reports_every_path():
+    """Verify that Problems collects every problem before raising."""
     p = Problems()
     p.require({}, "name", str)
     p.env_name("not-a-var", "targets[0].key_env")
@@ -398,6 +446,7 @@ def test_problems_reports_every_path():
 
 
 def test_profile_format_is_a_plugin(tmp_path):
+    """Verify that a registered profile loader is used and unknown formats are rejected."""
     PLUGINS.profile_loaders.register(
         "ini", lambda text: dict(line.split("=", 1) for line in text.splitlines()), replace=True
     )
@@ -409,6 +458,7 @@ def test_profile_format_is_a_plugin(tmp_path):
 
 
 def test_settings_prefix_and_types():
+    """Verify that settings use the application prefix and parse typed values."""
     s = Settings.for_app(
         "my-tool", environ={"MY_TOOL_RUN_BUDGET": "60", "MY_TOOL_NOTIFY": "a:, b:x"}
     )
@@ -418,19 +468,24 @@ def test_settings_prefix_and_types():
         Settings("X", {"X_RUN_BUDGET": "soon"}).get_float(Key.RUN_BUDGET)
 
 
-# ------------------------------------------------------------------ cli
-
-
 class _Cmd:
+    """Command stub that raises a given exception when run.
+
+    Args:
+        exc: Exception raised by run.
+    """
+
     name, help, passthrough = "boom", "", False
 
     def __init__(self, exc):
         self.exc = exc
 
     def add_arguments(self, parser, app):
+        """Add no arguments."""
         pass
 
     def run(self, args, app):
+        """Raise the configured exception."""
         raise self.exc
 
 
@@ -445,16 +500,19 @@ class _Cmd:
     ],
 )
 def test_cli_maps_exceptions_to_blame(exc, code):
+    """Verify that the CLI maps each exception type to its exit code."""
     assert App("t", version="0").add(_Cmd(exc)).main(["boom"]) == code
 
 
 def test_cli_rejects_unknown_arguments_unless_passthrough():
+    """Verify that unknown arguments are rejected for a command without passthrough."""
     with pytest.raises(SystemExit) as exc:
         App("t", version="0").add(_Cmd(RuntimeError())).main(["boom", "--nope"])
     assert exc.value.code == 2
 
 
 def test_child_argv_prefers_the_module():
+    """Verify that the child command line runs the configured module."""
     import sys
 
     assert App("t", version="0", module="pkg").child_argv("run") == [
@@ -466,11 +524,16 @@ def test_child_argv_prefers_the_module():
 
 
 def test_third_party_plugins_load_from_entry_points(monkeypatch):
+    """Verify that plugins are loaded from entry points in the registry's group."""
+
     class Point:
+        """Entry point stub that provides a notifier factory."""
+
         name = "teams"
 
         @staticmethod
         def load():
+            """Return the factory this entry point provides."""
             return "the-teams-factory"
 
     import va.plugins as plugins
@@ -481,6 +544,7 @@ def test_third_party_plugins_load_from_entry_points(monkeypatch):
 
 
 def test_notify_flag_replaces_the_environment(tmp_path):
+    """Verify that the notify option replaces the notifiers set in the environment."""
     from va.commands import notify_specs
 
     app = App("t", version="0", settings=Settings("T", {"T_NOTIFY": "log:,file:/x"}))
@@ -492,12 +556,14 @@ def test_notify_flag_replaces_the_environment(tmp_path):
 
 
 def test_compare_command_has_no_compare_switch():
+    """Verify that the compare command does not accept a compare option."""
     parser = App("t", version="0").add_builtins().build_parser()
     with pytest.raises(SystemExit):
         parser.parse_args(["compare", "run", "--compare"])
 
 
 def test_problems_catch_misspelled_keys_and_ranges():
+    """Verify that Problems reports misspelled keys and out-of-range integers."""
     p = Problems()
     p.unknown_keys({"name": 1, "capabilites": []}, {"name", "capabilities"}, at="targets[0]")
     p.int_range(700, 100, 599, "targets[0].errors.unknown_model")
@@ -509,6 +575,7 @@ def test_problems_catch_misspelled_keys_and_ranges():
 
 
 def test_run_ids_sort_in_start_order_within_a_second():
+    """Verify that run identifiers created within one second sort in creation order."""
     from va.rundir import new_run_id
 
     ids = []

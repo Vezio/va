@@ -5,8 +5,8 @@
 #   scripts/install.sh --dev      also the development tools: pytest, ruff, mypy, moto
 #   scripts/install.sh --recreate throw the virtualenv away first
 #
-# Needs Python 3.11 or newer: set PYTHON=/path/to/python3 to choose one. Idempotent: rerunning
-# is how a dependency change is picked up.
+# Requires Python 3.11 or later; set PYTHON=/path/to/python3 to choose an interpreter. The script
+# is idempotent; rerun it to pick up dependency changes.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 PYTHON="${PYTHON:-python3}" EXTRAS="[s3,yaml]" RECREATE=0
@@ -25,7 +25,7 @@ if ! python_ok "$PYTHON"; then
   echo "install.sh: needs Python 3.11 or newer, found: $found (set PYTHON=/path/to/python3)" >&2
   exit 1
 fi
-# A virtualenv from an older Python, or one created without pip, is replaced or repaired.
+# Replace a virtualenv built with an older Python, and repair one created without pip.
 if [ -d .venv ] && ! python_ok .venv/bin/python; then
   echo "install.sh: .venv uses an unsupported Python; recreating it"
   RECREATE=1

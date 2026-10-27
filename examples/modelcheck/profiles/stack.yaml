@@ -1,19 +1,22 @@
-# An OpenAI-compatible serving stack: a gateway, a router behind it, an engine behind that. This
-# is what a CORRECT stack does, declared per layer. The run measures it: a layer that differs
-# fails, and the layers say where: a case that fails at the router but passes at the engine
-# behind it starts at the router. Never edit a declaration to make a run pass; a difference is
-# the finding.
+# An OpenAI-compatible serving stack with a gateway, a router behind it, and an engine behind
+# the router. The profile declares how a correct stack behaves at each layer, and the run
+# measures the deployed stack against it. A layer that behaves differently fails the case, and
+# the layer results show where the failure starts. For example, a case that fails at the router
+# but passes at the engine behind it is reported as starting at the router. Do not edit a
+# declaration to make a run pass; report the difference for triage instead.
 #
-# Each target is a layer: a `kind` (proxy, router or engine; outermost first) and the target it
-# is `behind`. Declare only the layers you can reach: one is a complete profile.
+# Each target is a layer with a `kind` (proxy, router or engine, from the outermost inwards) and
+# optionally the target it is `behind`. Declare only the layers that are reachable. A profile
+# with a single layer is complete.
 #
-# Addresses and keys are named, never written here: the run reads them from the environment.
+# Addresses and keys are not written in the profile. Each is given as the name of an environment
+# variable, which the run reads.
 name: demo-stack
 description: a gateway, the router behind it, and its engine
 
-# Defaults for every target; a target may override them.
+# Defaults for every target. A target may override them.
 model: demo-model
-max_latency_ms: 800              # an engine answers directly, so the default is tight
+max_latency_ms: 800              # The engine answers directly, so the default budget is tight.
 
 targets:
   - name: gateway
@@ -22,23 +25,23 @@ targets:
     base_url_env: GATEWAY_URL
     key_env: GATEWAY_TOKEN
     capabilities: [models, chat, stream, auth]
-    max_latency_ms: 1500         # the gateway adds a hop: its own, looser budget
+    max_latency_ms: 1500         # The gateway adds a hop, so it has a looser budget.
     expect:
-      unknown_model_status: 404  # a correct gateway passes the engine's 404 through
+      unknown_model_status: 404  # A correct gateway passes the engine's 404 through.
       bad_key_status: 401
 
   - name: router
     kind: router
     behind: engine
     base_url_env: ROUTER_URL
-    capabilities: [models, chat, stream]   # no auth behind the gateway
-    max_latency_ms: 1200          # one hop more than the engine
+    capabilities: [models, chat, stream]   # Layers behind the gateway do not authenticate.
+    max_latency_ms: 1200          # One hop more than the engine.
     expect:
       unknown_model_status: 404
 
   - name: engine
     kind: engine
     base_url_env: ENGINE_URL
-    capabilities: [models, chat, stream]   # no auth on the engine: the auth case skips here
+    capabilities: [models, chat, stream]   # No auth on the engine, so the auth case skips here.
     expect:
       unknown_model_status: 404

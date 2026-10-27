@@ -1,4 +1,4 @@
-"""Streaming: a well-formed Server-Sent Events stream, ended the way clients expect."""
+"""Streaming cases, which check for a well-formed Server-Sent Events stream."""
 
 from __future__ import annotations
 
@@ -12,9 +12,12 @@ from . import REGISTRY
 
 @REGISTRY.case("stream.well_formed", needs={"stream"}, tags={"smoke"})
 def well_formed(ctx: Context) -> None:
-    """A streamed completion: every event is a JSON chunk, exactly one carries a finish
-    reason, the content assembles to a non-empty answer, and the stream ends with
-    `data: [DONE]`. Clients that wait for [DONE] hang when a layer drops it."""
+    """Verify that a streamed completion is well formed and ends with `data: [DONE]`.
+
+    Every event must be a JSON chunk, exactly one chunk must carry a finish reason, and the
+    content must assemble into a non-empty answer. Clients that wait for the [DONE] marker can
+    wait indefinitely when a layer omits it.
+    """
     t = ctx.target
     exchange = ctx.state.client(t).post_json(
         "/v1/chat/completions",
@@ -31,7 +34,7 @@ def well_formed(ctx: Context) -> None:
     ctx.require("content_type", content_type.split(";")[0], "text/event-stream")
     events = sse_events(exchange)
     ctx.check("events", len(events), "> 0", bool(events))
-    ctx.save("stream.txt", exchange.body.decode("utf-8", "replace"))  # evidence, per case
+    ctx.save("stream.txt", exchange.body.decode("utf-8", "replace"))  # Kept as per-case evidence.
     chunks, text, finishes = [], "", 0
     for raw in events:
         if raw == "[DONE]":

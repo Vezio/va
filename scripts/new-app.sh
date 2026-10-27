@@ -8,10 +8,11 @@
 # variables), plus its own README, tests, container image definition, Kubernetes manifests and
 # CI workflow. NAME is a lowercase Python identifier, e.g. mytool.
 #
-# By default the tool depends on the commit this checkout is at, as a source archive from the
-# public repository: every machine and image build gets exactly that code, without git. The
-# commit must have been pushed. --local installs this checkout in editable mode instead, so
-# framework changes reach the tool without a reinstall; it works only on this machine.
+# By default the tool depends on the current commit of this checkout, as a source archive from
+# the public repository, so every machine and image build installs the same code without git.
+# The commit must already be pushed. With --local, the tool uses this checkout in editable mode
+# instead, so framework changes take effect without reinstalling; this works only on this
+# machine.
 set -euo pipefail
 
 usage() { sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//'; }
@@ -29,10 +30,10 @@ root="$(cd "$(dirname "$0")/.." && pwd)"
 upper="$(printf '%s' "$name" | tr '[:lower:]' '[:upper:]')"
 repo_url="https://github.com/Vezio/va"
 
-# --- which VA the tool depends on
+# Select the VA dependency.
 if [ "$local_dep" = 1 ]; then
-  # Not a file:// URL: pip caches the wheel it builds from one, and later installs reuse that
-  # stale copy over the checkout. The editable install below satisfies this requirement.
+  # A file:// URL is not used because pip caches the wheel built from it and reuses that copy
+  # after the checkout changes. The editable install in $install satisfies this requirement.
   framework="va-framework[s3,yaml]"
   pinned="the checkout at $root, installed in editable mode"
   install=".venv/bin/pip install -e \"${root}[s3]\" -e \".[dev]\""
@@ -57,7 +58,7 @@ rename() {  # the example's names, in every text file under the given paths
   find "$@" -name '*.bak' -delete
 }
 
-# --- the tool: code, profiles and tests, from the example
+# Copy the example tool: code, profiles and tests.
 mkdir -p "$dest"
 cp -R "$root/examples/httpcheck/src" "$root/examples/httpcheck/tests" "$root/examples/httpcheck/profiles" "$dest/"
 find "$dest" \( -name '__pycache__' -o -name '*.egg-info' \) -prune -exec rm -rf {} +
@@ -96,14 +97,19 @@ line-length = 100
 target-version = "py311"
 
 [tool.ruff.lint]
-# T20 bans print(): output goes through VA's logging (log.emit, get_logger).
-select = ["E", "F", "W", "I", "T20", "B", "UP"]
+# T20 bans print(); output goes through VA's logging (log.emit, get_logger).
+# D enforces Google-style docstrings; constructor arguments go in the class docstring.
+select = ["E", "F", "W", "I", "T20", "B", "UP", "D"]
+ignore = ["D107"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 EOF
 
-# --- the image: every dependency from a hash-checked lock, then the tool
+# Container image: dependencies from a hash-checked lock file, then the tool.
 mkdir -p "$dest/container" "$dest/scripts"
 cat >"$dest/container/Containerfile" <<EOF
 # The $name runner image. Build from the repository root, after scripts/lock.sh:
@@ -111,8 +117,8 @@ cat >"$dest/container/Containerfile" <<EOF
 FROM python:3.12-slim
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 HOME=/tmp
 WORKDIR /src
-# Every dependency, VA included, pinned with hashes: a rebuild cannot drift, and a
-# tampered package fails the build.
+# All dependencies, including VA, are pinned with hashes so that rebuilds are reproducible
+# and packages with unexpected contents are rejected.
 COPY container/requirements.lock ./
 RUN pip install --require-hashes -r requirements.lock
 COPY pyproject.toml ./
@@ -126,7 +132,7 @@ EOF
 cat >"$dest/scripts/lock.sh" <<'EOF'
 #!/usr/bin/env bash
 # lock.sh: pin every dependency of the image, with hashes, into container/requirements.lock.
-# Rerun after changing pyproject.toml's dependencies, and review the diff like code. Needs uv.
+# Rerun after changing the dependencies in pyproject.toml and review the diff. Requires uv.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 command -v uv >/dev/null || { echo "lock.sh: needs uv (https://docs.astral.sh/uv/)" >&2; exit 2; }
@@ -136,7 +142,7 @@ echo "wrote container/requirements.lock"
 EOF
 chmod +x "$dest/scripts/lock.sh"
 
-# --- Kubernetes: the CronJob base, an example overlay, the trigger script
+# Kubernetes: the CronJob base, an example overlay and the trigger script.
 mkdir -p "$dest/deploy"
 cp -R "$root/deploy/base" "$root/deploy/overlays" "$root/deploy/trigger.sh" \
   "$root/deploy/secrets.env.example" "$dest/deploy/"
@@ -144,7 +150,7 @@ sed -e "s#(\.\./docs/deploying\.md)#($repo_url/blob/main/docs/deploying.md)#" \
   "$root/deploy/README.md" >"$dest/deploy/README.md"
 rename "$dest/deploy"
 
-# --- CI
+# Continuous integration workflow.
 mkdir -p "$dest/.github/workflows"
 cat >"$dest/.github/workflows/tests.yaml" <<'EOF'
 name: Tests

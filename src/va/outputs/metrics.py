@@ -1,7 +1,8 @@
-"""A Prometheus text-format metrics file for each run.
+"""Rendering of a Prometheus text-format metrics file for each run.
 
-Point it at node_exporter's textfile collector directory (or any scraper that reads the
-format) and run health lands on the same dashboards and alerts as the infrastructure:
+When the file is written to node_exporter's textfile collector directory, or read by another
+scraper that understands the format, run health appears on the same dashboards and alerts as
+the infrastructure. The metrics are:
 
     va_run_exit_code{tool,group}             the last run's exit code
     va_run_timestamp_seconds{tool,group}     when it finished
@@ -10,10 +11,11 @@ format) and run health lands on the same dashboards and alerts as the infrastruc
     va_skips{tool,group,skip_class}          skips by class
     va_run_published{tool,group}             1 if published (or not asked)
 
-The prefix is configurable: an app usually passes its own name.
+The metric prefix is configurable, and an application usually passes its own name.
 
-The file is written atomically (a temporary file renamed into place), so a scraper never reads
-half of it. Written after publication when there is one, so `published` is known.
+The external file is written atomically, by renaming a temporary file into place, so that a
+scraper does not read a partially written file. When the run is published, the file is
+rewritten afterwards so that the publication metric is accurate.
 """
 
 from __future__ import annotations
@@ -31,21 +33,67 @@ from ..rundir import RunDir
 
 
 def _labels(**labels: str) -> str:
+    """Format labels as a Prometheus label set, sorted by name.
+
+    Args:
+        **labels: The label names and values.
+
+    Returns:
+        The label set, including braces, with values escaped.
+    """
+
     def esc(value: str) -> str:
+        """Escape backslashes, newlines and double quotes in a label value.
+
+        Args:
+            value: The raw label value.
+
+        Returns:
+            The escaped value.
+        """
         return value.replace("\\", "\\\\").replace("\n", "\\n").replace('"', '\\"')
 
     return "{" + ",".join(f'{k}="{esc(v)}"' for k, v in sorted(labels.items())) + "}"
 
 
 def _seconds(stamp: str | None) -> float | None:
+    """Convert an ISO 8601 timestamp to seconds since the epoch.
+
+    Args:
+        stamp: The timestamp, or None.
+
+    Returns:
+        The POSIX timestamp, or None when no timestamp was given.
+    """
     return datetime.fromisoformat(stamp).timestamp() if stamp else None
 
 
 def render_metrics(outcome: RunOutcome, records: list[ResultRecord], prefix: str = "va") -> str:
+    """Render a run's metrics in the Prometheus text exposition format.
+
+    Every sample carries the `tool` and `group` labels. The timestamp and duration metrics are
+    included only when the corresponding times are known.
+
+    Args:
+        outcome: The run outcome.
+        records: The run's result records.
+        prefix: The prefix for every metric name.
+
+    Returns:
+        The metrics text, ending with a newline.
+    """
     base = {"tool": outcome.tool, "group": outcome.group or ""}
     lines: list[str] = []
 
     def metric(name: str, kind: str, help_: str, samples: list[tuple[dict, float]]) -> None:
+        """Append one metric family with its HELP and TYPE lines and its samples.
+
+        Args:
+            name: The metric name without the prefix.
+            kind: The Prometheus metric type.
+            help_: The help text.
+            samples: Pairs of extra labels and sample value.
+        """
         lines.append(f"# HELP {prefix}_{name} {help_}")
         lines.append(f"# TYPE {prefix}_{name} {kind}")
         lines.extend(
@@ -91,6 +139,15 @@ def render_metrics(outcome: RunOutcome, records: list[ResultRecord], prefix: str
 
 
 def write_atomically(path: Path, text: str) -> None:
+    """Write text to a file by renaming a temporary file into place.
+
+    The temporary file is created in the target directory, so the rename is atomic, and the
+    result is made world-readable for the scraper.
+
+    Args:
+        path: The destination file. Parent directories are created.
+        text: The content to write.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
     handle, temp = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.")
     with os.fdopen(handle, "w", encoding="utf-8") as stream:
@@ -100,8 +157,16 @@ def write_atomically(path: Path, text: str) -> None:
 
 
 class MetricsFile(RunHooks):
-    """Writes metrics.prom into the run directory (published with it) and atomically to
-    `path` (e.g. the textfile collector directory), rewritten once publication is known."""
+    """A run hook that writes metrics.prom into the run directory and optionally to a path.
+
+    The file in the run directory is published with the run. The external file, for example
+    in a textfile collector directory, is written atomically and rewritten once the
+    publication result is known.
+
+    Args:
+        path: An optional external path to write the metrics file to.
+        prefix: The prefix for every metric name.
+    """
 
     def __init__(self, path: Path | None = None, prefix: str = "va"):
         self.path = path
@@ -109,6 +174,12 @@ class MetricsFile(RunHooks):
         self._outcome: RunOutcome | None = None
 
     def on_finish(self, run: RunDir, outcome: RunOutcome) -> None:
+        """Render the metrics, write them to the run directory and the external path.
+
+        Args:
+            run: The finished run directory.
+            outcome: The run outcome, kept for the rewrite after publication.
+        """
         self._outcome = outcome
         text = render_metrics(outcome, run.results(), self.prefix)
         run.write_text(RunFile.METRICS, text)
@@ -116,6 +187,14 @@ class MetricsFile(RunHooks):
             write_atomically(self.path, text)
 
     def on_published(self, run: RunDir, publication: Publication) -> None:
-        # The session has already set outcome.publication; only the external file changes.
+        """Rewrite the external metrics file with the publication result.
+
+        The session has already updated the outcome's publication field, so only the external
+        file needs to change.
+
+        Args:
+            run: The published run directory.
+            publication: The publication result.
+        """
         if self.path and self._outcome is not None:
             write_atomically(self.path, render_metrics(self._outcome, run.results(), self.prefix))

@@ -1,4 +1,4 @@
-# The system under test: go-httpbin, a small HTTP service that answers predictably.
+# System under test: go-httpbin, a small HTTP service with predictable responses.
 apiVersion: apps/v1
 kind: Deployment
 metadata:

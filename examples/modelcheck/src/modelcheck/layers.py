@@ -1,12 +1,16 @@
-"""The kinds of layer an OpenAI-compatible serving stack has, from the client inwards.
+"""Layer kinds of an OpenAI-compatible serving stack, listed from the client inwards.
 
-    proxy   an API gateway or proxy: authenticates, may translate, forwards to a router or
-            an engine; passes through the header that names the backend that answered
-    router  routes each request to one of several engines, and names the one it picked in
-            `x-served-by`
-    engine  the model server itself: what answers is the layer
+The registered kinds are:
 
-A new kind is one `register` call here, and an adapter only if calling it differs.
+    proxy   An API gateway or proxy. It authenticates requests, may translate them, and
+            forwards them to a router or an engine. It passes through the header that names
+            the backend that answered.
+    router  Routes each request to one of several engines and names the selected engine in
+            the `x-served-by` response header.
+    engine  The model server itself. The engine is the component that answers.
+
+Adding a kind requires one `register` call in this module, plus an adapter only if requests to
+that kind are made differently.
 """
 
 from __future__ import annotations

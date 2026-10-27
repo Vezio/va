@@ -1,14 +1,13 @@
 #!/usr/bin/env bash
-# test.sh: assert the CronJob's production behaviours on the demo cluster (run up.sh first).
+# test.sh: verify the CronJob's operational behaviour on the demo cluster (run up.sh first).
 #
-#   1. scheduling: the CronJob fires on its own, and a later nightly run compares with an
-#      earlier one;
-#   2. a failing target: the run exits 1, the Job fails without a retry, the evidence is still
-#      published;
-#   3. a broken environment (target unreachable): the run exits 3, not 1, and is still
+#   1. Scheduling: the CronJob starts runs on schedule, and a later run is compared with an
+#      earlier one.
+#   2. Failing target: the run exits 1, the Job fails without a retry, and the evidence is
 #      published.
+#   3. Unreachable target: the run exits 3 rather than 1, and is still published.
 #
-# The cluster is put back as up.sh left it, whatever happens.
+# The cluster is restored to the state up.sh left it in, whether or not the checks pass.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 # shellcheck source=demo/kind/lib.sh
@@ -25,7 +24,7 @@ trap restore EXIT
 
 k -n "$NAMESPACE" get cronjob app >/dev/null || fail "no demo deployment: run demo/kind/up.sh first"
 
-# A one-off run with the current settings; prints the job name once it has finished.
+# Start a one-off run with the current settings and print the Job name once it has finished.
 run_once() {
   local job
   job="$(deploy/trigger.sh -n "$NAMESPACE" --cronjob app --trigger test --id "$1-$(date +%s)")"

@@ -1,7 +1,8 @@
-"""report.html: one self-contained page for a run, readable offline and safe to publish.
+"""Rendering of report.html, a self-contained page that summarises a run.
 
-Everything shown comes from the run's own records; every value is escaped and redacted. The
-page has no scripts and loads nothing: `<details>` does the expanding.
+The page is readable offline and safe to publish. Its content comes only from the run's own
+records, and every value is escaped and redacted. The page contains no scripts and loads no
+external resources. Expandable sections use `<details>` elements.
 """
 
 from __future__ import annotations
@@ -22,16 +23,32 @@ from ..rundir import RunDir
 
 @cache
 def _stylesheet() -> str:
-    """The page's CSS, shipped as package data (outputs/report.css)."""
+    """Return the page stylesheet, read once from the package data file outputs/report.css."""
     return resources.files(__package__).joinpath("report.css").read_text(encoding="utf-8")
 
 
 def _cell(value: object) -> str:
+    """Return a value as escaped HTML text, serialising non-strings as JSON.
+
+    Args:
+        value: The value to render.
+
+    Returns:
+        The escaped text.
+    """
     text = value if isinstance(value, str) else json.dumps(value, default=str)
     return escape(text)
 
 
 def _checks(record: ResultRecord) -> str:
+    """Render a record's checks as a collapsible table.
+
+    Args:
+        record: The result record whose checks are rendered.
+
+    Returns:
+        An HTML fragment, or a muted note when the record has no checks.
+    """
     if not record.checks:
         return '<span class="muted">no checks recorded</span>'
     rows = "".join(
@@ -50,6 +67,19 @@ def _checks(record: ResultRecord) -> str:
 def render_html(
     outcome: RunOutcome, records: list[ResultRecord], comparison: Comparison | None = None
 ) -> str:
+    """Render the HTML report page for a run.
+
+    The page shows the title, counts, skip classes, preflight problems, the comparison with
+    baseline runs when given, every case ordered with failures first, and links.
+
+    Args:
+        outcome: The run outcome.
+        records: The run's result records.
+        comparison: The comparison with baseline runs, if one was made.
+
+    Returns:
+        The complete HTML document.
+    """
     report = RunReport.build(outcome, comparison)
     c = outcome.counts
     cards = "".join(
@@ -120,12 +150,24 @@ def render_html(
 
 
 class HtmlReport(RunHooks):
-    """Writes report.html into the run directory (published with it), and to `copy_to`."""
+    """A run hook that writes report.html into the run directory and optionally copies it.
+
+    The file in the run directory is published with the run.
+
+    Args:
+        copy_to: An optional additional path to write a redacted copy of the page to.
+    """
 
     def __init__(self, copy_to: Path | None = None):
         self.copy_to = copy_to
 
     def on_finish(self, run: RunDir, outcome: RunOutcome) -> None:
+        """Render the page from the run's results and comparison, and write it.
+
+        Args:
+            run: The finished run directory.
+            outcome: The run outcome.
+        """
         body = run.read_json(RunFile.COMPARISON)
         comparison = Comparison.from_dict(body) if body else None
         page = render_html(outcome, run.results(), comparison)

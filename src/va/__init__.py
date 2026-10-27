@@ -1,8 +1,10 @@
-"""va: the skeleton for CLIs that test deployed systems (model-serving stacks first),
-keep the evidence, and say whose problem a failure is. See docs/design.md for why it is
-shaped this way, and docs/architecture.md for the extension points.
+"""Framework for command-line tools that test deployed systems.
 
-The names below are the public API; everything else is reachable from its module.
+The framework targets model-serving stacks first. It keeps the evidence of each run and
+classifies each failure by the party responsible for it. See docs/design.md for the design
+rationale and docs/architecture.md for the extension points.
+
+The names exported here form the public API. Other names are available from their modules.
 """
 
 __version__ = "0.5.0"

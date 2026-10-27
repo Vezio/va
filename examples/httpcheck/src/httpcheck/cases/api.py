@@ -1,4 +1,4 @@
-"""API behaviour every correct JSON service shares: content types, errors, authentication."""
+"""Cases for behaviour common to JSON services: content types, errors and authentication."""
 
 from __future__ import annotations
 
@@ -9,7 +9,11 @@ from . import REGISTRY
 
 @REGISTRY.case("api.json_content_type", needs={"json", "health"})
 def json_content_type(ctx: Context) -> None:
-    """The health answer is JSON and says so in its Content-Type."""
+    """Verify that the health response is JSON and declares it in its Content-Type header.
+
+    Args:
+        ctx: The case context, providing the target, shared state and check recording.
+    """
     t = ctx.target
     exchange = ctx.state.client(t).get(t.health_path, case_id=ctx.case_id)
     content_type = {k.lower(): v for k, v in exchange.headers.items()}.get("content-type", "")
@@ -23,7 +27,13 @@ def json_content_type(ctx: Context) -> None:
 
 @REGISTRY.case("api.unknown_path", variants=("GET", "POST"))
 def unknown_path(ctx: Context) -> None:
-    """A path that cannot exist answers 404, for each method: not a 200 page, not a 500."""
+    """Verify that a request to a nonexistent path returns 404.
+
+    The case runs once per HTTP method variant. A 200 page or a 500 error both fail it.
+
+    Args:
+        ctx: The case context; `ctx.variant` is the HTTP method to use.
+    """
     t = ctx.target
     exchange = ctx.state.client(t).request(
         ctx.variant,
@@ -37,7 +47,11 @@ def unknown_path(ctx: Context) -> None:
 
 @REGISTRY.case("auth.rejects_bad_key", needs={"auth"}, tags={"smoke", "security"})
 def rejects_bad_key(ctx: Context) -> None:
-    """A wrong credential is refused with 401 on the health path."""
+    """Verify that the health path rejects an invalid bearer token with 401.
+
+    Args:
+        ctx: The case context, providing the target, shared state and check recording.
+    """
     t = ctx.target
     exchange = ctx.state.client(t).get(
         t.health_path,

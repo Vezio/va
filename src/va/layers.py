@@ -1,22 +1,24 @@
-"""Layers: targets that are the ingresses of one stack, each in front of the next.
+"""Layered targets that represent the successive ingresses of one serving stack.
 
-A serving stack is reached at several points: a gateway, a router behind it, an engine behind
-that. Declared as layers, each target carries a **kind** and, optionally, the name of the target
-it is **behind** (forwards to). The framework then:
+A serving stack can be reached at several points, such as a gateway, a router behind it and an
+engine behind the router. When targets are declared as layers, each carries a kind and,
+optionally, the name of the target it is behind (forwards requests to). The framework then:
 
-- validates the declaration: every kind known, every `behind` naming another target, no cycle,
-  no layer in front of a layer of an outer kind;
-- orders the targets outermost first, so every column, report and listing reads from the
-  client's side inwards;
-- gives each kind an **adapter**: the one place for what differs about calling a kind of layer
-  (headers it needs, how it says which backend answered). Cases stay generic;
-- **locates** a failure: when the same case fails at a layer and passes at the one behind it,
-  the defect is in that layer, not deeper. `LayerLocator`, a run hook, does it for every
-  failing case and writes `layers.json`.
+- validates the declaration: every kind is registered, every `behind` names another target,
+  there is no cycle, and no layer is in front of a layer of an outer kind;
+- orders the targets outermost first, so that columns, reports and listings read from the
+  client side inwards;
+- associates an adapter with each kind, which handles what differs when calling that kind of
+  layer, such as required headers or how the answering backend is identified. Cases remain
+  generic;
+- locates failures: when a case fails at one layer and passes at the layer behind it, the defect
+  is in the outer layer. The `LayerLocator` run hook does this for every failing case and writes
+  `layers.json`.
 
-Kinds belong to the tool, not the framework: a tool makes one `LayerKinds`, registers its kinds
-with their depth, and parses profiles with it. Nothing here is module state.
+Kinds are defined by the tool, not by the framework. A tool creates one `LayerKinds`, registers
+its kinds with their depth, and uses it to parse profiles. This module holds no global state.
 
+Example:
     KINDS = LayerKinds()
     KINDS.register("proxy", depth=0, description="an API gateway or proxy")
     KINDS.register("router", depth=1, adapter=RouterAdapter())
@@ -40,44 +42,81 @@ log = get_logger("layers")
 
 
 class Layered(Protocol):
-    """A target declared as a layer. `behind` is the name of the target this one forwards to,
-    or None for the innermost layer. `locate` reads None as innermost, so declare `behind` on
-    every layer in front of another."""
+    """Protocol for a target declared as a layer.
+
+    `LayerKinds.locate` treats a layer whose `behind` is None as the innermost layer, so
+    implementations must set `behind` on every layer that is in front of another.
+    """
 
     @property
-    def name(self) -> str: ...
+    def name(self) -> str:
+        """The target name, unique within the stack."""
+        ...
 
     @property
-    def kind(self) -> str: ...
+    def kind(self) -> str:
+        """The name of the layer kind, as registered with `LayerKinds`."""
+        ...
 
     @property
-    def behind(self) -> str | None: ...
+    def behind(self) -> str | None:
+        """The name of the target this layer forwards to, or None for the innermost layer."""
+        ...
 
 
 L = TypeVar("L", bound=Layered)
 
 
 class LayerAdapter:
-    """What differs about calling one kind of layer. Subclass and override only what differs;
-    the defaults suit a layer that needs nothing and does not say who answered."""
+    """Behaviour specific to calling one kind of layer.
+
+    Subclasses override only the methods whose behaviour differs. The defaults suit a layer that
+    requires no extra headers and does not report which component answered.
+    """
 
     def request_headers(self, layer: Layered) -> dict[str, str]:
-        """Headers every request to this layer carries (to route to a backend, say)."""
+        """Return the headers that every request to this layer carries.
+
+        Such headers can, for example, route a request to a particular backend.
+
+        Args:
+            layer: The layer being called.
+
+        Returns:
+            The headers to add. The default is an empty mapping.
+        """
         return {}
 
     def served_by(self, layer: Layered, headers: Mapping[str, str]) -> str | None:
-        """Which component answered, from the response headers; None when the layer does not
-        say. Recorded as evidence with each exchange; never a verdict on its own."""
+        """Return the component that answered, as reported in the response headers.
+
+        The value is recorded as evidence with each exchange. It does not determine a verdict.
+
+        Args:
+            layer: The layer that was called.
+            headers: The response headers.
+
+        Returns:
+            The name of the answering component, or None when the layer does not report it.
+        """
         return None
 
 
 class HeaderServedBy(LayerAdapter):
-    """A layer that names the component that answered in a response header."""
+    """Adapter for a layer that names the answering component in a response header.
+
+    Args:
+        header: Name of the response header. Matched case-insensitively.
+
+    Attributes:
+        header: Lower-cased name of the response header.
+    """
 
     def __init__(self, header: str):
         self.header = header.lower()
 
     def served_by(self, layer: Layered, headers: Mapping[str, str]) -> str | None:
+        """Return the value of the configured header, or None when it is absent."""
         for key, value in headers.items():
             if key.lower() == self.header:
                 return value
@@ -85,15 +124,23 @@ class HeaderServedBy(LayerAdapter):
 
 
 class AnswersItself(LayerAdapter):
-    """The innermost layer: whatever answers is the layer itself."""
+    """Adapter for the innermost layer, which is itself the component that answers."""
 
     def served_by(self, layer: Layered, headers: Mapping[str, str]) -> str | None:
+        """Return the layer's own name."""
         return layer.name
 
 
 @dataclass(frozen=True)
 class LayerKind:
-    """A kind of layer. `depth` orders kinds from the client inwards: 0 is called first."""
+    """A registered kind of layer.
+
+    Attributes:
+        name: Name of the kind.
+        depth: Position from the client inwards. Depth 0 is the layer called first.
+        description: Human-readable description.
+        adapter: Adapter used when calling layers of this kind.
+    """
 
     name: str
     depth: int
@@ -103,15 +150,21 @@ class LayerKind:
 
 @dataclass(frozen=True)
 class Location:
-    """Where a failure starts. `confirmed` is False when the layer behind it did not run the
-    case (skipped, or not declared), so the defect could also be deeper."""
+    """The layer at which a failure starts.
+
+    Attributes:
+        layer: Name of the layer.
+        confirmed: Whether the layer behind it passed the case. False when the layer behind it
+            did not run the case (it was skipped or not declared), in which case the defect may
+            be further in.
+    """
 
     layer: str
     confirmed: bool
 
 
 class LayerKinds:
-    """A tool's registry of layer kinds, and the operations over a declared stack."""
+    """Registry of a tool's layer kinds, with operations over a declared stack."""
 
     def __init__(self) -> None:
         self._kinds: dict[str, LayerKind] = {}
@@ -124,6 +177,20 @@ class LayerKinds:
         description: str = "",
         adapter: LayerAdapter | None = None,
     ) -> LayerKind:
+        """Register a layer kind.
+
+        Args:
+            name: Name of the kind.
+            depth: Position from the client inwards. Depth 0 is the layer called first.
+            description: Human-readable description.
+            adapter: Adapter for layers of this kind. Defaults to a plain `LayerAdapter`.
+
+        Returns:
+            The registered kind.
+
+        Raises:
+            ValueError: If a kind with the same name is already registered.
+        """
         if name in self._kinds:
             raise ValueError(f"layer kind {name!r} is already registered")
         kind = LayerKind(name, depth, description, adapter or LayerAdapter())
@@ -131,32 +198,59 @@ class LayerKinds:
         return kind
 
     def __contains__(self, name: object) -> bool:
+        """Return whether a kind with the given name is registered."""
         return name in self._kinds
 
     def __getitem__(self, name: str) -> LayerKind:
+        """Return the registered kind with the given name."""
         return self._kinds[name]
 
     @property
     def names(self) -> tuple[str, ...]:
-        """Kind names, outermost first."""
+        """The registered kind names, outermost first."""
         return tuple(k.name for k in sorted(self._kinds.values(), key=lambda k: k.depth))
 
     def adapter(self, layer: Layered) -> LayerAdapter:
+        """Return the adapter for a layer's kind.
+
+        Args:
+            layer: The layer.
+
+        Returns:
+            The adapter registered for the layer's kind.
+        """
         return self._kinds[layer.kind].adapter
 
-    # -- profiles --------------------------------------------------------------------------
-
     def parse(self, p: Problems, raw: Mapping, at: str) -> tuple[str, str | None]:
-        """Read `kind` (required, one of the registered kinds) and `behind` (optional) from one
-        target's table. Problems are collected, not raised; check the whole stack with
-        `check_stack` once every target is read."""
+        """Read the `kind` and `behind` fields from one target's profile table.
+
+        `kind` is required and must be a registered kind. `behind` is optional. Problems are
+        collected in `p` rather than raised. Once every target is read, validate the whole stack
+        with `check_stack`.
+
+        Args:
+            p: Collector for validation problems.
+            raw: The target's table from the profile.
+            at: Path of the table within the profile, used in problem messages.
+
+        Returns:
+            The kind (an empty string if it is invalid) and the `behind` value.
+        """
         kind = p.one_of(p.require(raw, "kind", str, at=at), self.names, f"{at}.kind")
         behind = p.optional(raw, "behind", str, at=at)
         return (kind if kind in self._kinds else ""), behind
 
     def check_stack(self, p: Problems, layers: Sequence[Layered], at: str = "targets") -> None:
-        """Rules across targets: `behind` names another target, a layer is never in front of an
-        outer kind, and following `behind` always ends."""
+        """Validate the relationships between declared layers.
+
+        Each `behind` must name another target, no layer may be in front of a layer of an outer
+        kind, and following `behind` from any layer must terminate.
+
+        Args:
+            p: Collector for validation problems.
+            layers: The declared layers, in profile order.
+            at: Path of the targets list within the profile, used in problem messages.
+        """
         by_name = {layer.name: layer for layer in layers}
         for i, layer in enumerate(layers):
             if layer.behind is None:
@@ -184,15 +278,30 @@ class LayerKinds:
                 seen.add(current.name)
                 current = by_name.get(current.behind)
 
-    # -- a declared stack ------------------------------------------------------------------
-
     def order(self, layers: Iterable[L]) -> list[L]:
-        """Outermost first; layers of the same kind keep their declared order."""
+        """Return the layers sorted outermost first.
+
+        Layers of the same kind keep their declared order.
+
+        Args:
+            layers: The layers to sort.
+
+        Returns:
+            The sorted layers.
+        """
         return sorted(layers, key=lambda layer: self._kinds[layer.kind].depth)
 
     @staticmethod
     def chain(layers: Sequence[L], name: str) -> list[L]:
-        """The layer named, then every layer behind it, inwards."""
+        """Return the named layer followed by every layer behind it, from the outside inwards.
+
+        Args:
+            layers: The declared layers.
+            name: Name of the first layer.
+
+        Returns:
+            The chain of layers, or an empty list if no layer has that name.
+        """
         by_name = {layer.name: layer for layer in layers}
         out: list[L] = []
         current = by_name.get(name)
@@ -203,13 +312,23 @@ class LayerKinds:
 
     @staticmethod
     def locate(layers: Sequence[Layered], verdicts: Mapping[str, Verdict | str]) -> list[Location]:
-        """Where one case's failures start, given its verdict per layer name. A failing layer
-        whose `behind` passed is where the defect is; a failing layer behind which nothing ran
-        is where it is at the latest. Failures that only repeat one from further in are not
-        reported again."""
+        """Return the layers at which one case's failures start.
+
+        A failing layer whose `behind` layer passed is a confirmed location of the defect. A
+        failing layer behind which nothing ran is the outermost possible location. A failure that
+        only repeats a failure from a layer further in is not reported again.
+
+        Args:
+            layers: The declared layers.
+            verdicts: The case's verdict for each layer name that ran it.
+
+        Returns:
+            One location per independent failure.
+        """
         failing = {Verdict.FAIL, Verdict.ERROR}
 
         def failed(name: str) -> bool:
+            """Return whether the named layer failed or errored."""
             return Verdict(verdicts[name]) in failing
 
         out = []
@@ -218,7 +337,8 @@ class LayerKinds:
                 continue
             behind = layer.behind
             if behind is not None and behind in verdicts and failed(behind):
-                continue  # the failure is repeated from further in
+                # The failure repeats one from a layer further in.
+                continue
             passed_behind = (
                 behind is not None
                 and behind in verdicts
@@ -229,18 +349,28 @@ class LayerKinds:
 
 
 class LayerLocator(RunHooks):
-    """A run hook: once the run ends, where each failing case's failure starts. Writes
-    `layers.json` (the stack as declared, and one entry per failing case) and logs one line per
-    location. Pass the layers outermost first, as `LayerKinds.order` gives them."""
+    """Run hook that reports where each failing case's failure starts.
+
+    At the end of the run, it writes `layers.json`, containing the declared stack and one entry
+    per failure location, and logs one line per location.
+
+    Args:
+        layers: The declared layers, outermost first, as returned by `LayerKinds.order`.
+
+    Attributes:
+        layers: The declared layers, outermost first.
+    """
 
     def __init__(self, layers: Sequence[Layered]):
         self.layers = list(layers)
         self._records: list[ResultRecord] = []
 
     def on_result(self, run: RunDir, record: ResultRecord) -> None:
+        """Collect a result record for analysis at the end of the run."""
         self._records.append(record)
 
     def on_finish(self, run: RunDir, outcome: RunOutcome) -> None:
+        """Locate each failure, log it and write `layers.json` to the run directory."""
         by_case: dict[tuple[str, str], dict[str, Verdict]] = {}
         for record in self._records:
             by_case.setdefault((record.case_id, record.variant), {})[record.target] = record.verdict

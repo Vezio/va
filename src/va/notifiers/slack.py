@@ -1,5 +1,8 @@
-"""Slack incoming webhooks: one implementation of the Notifier protocol, nothing more special
-than the others. Formatting that only Slack needs (escaping, mrkdwn) lives here."""
+"""A notifier for Slack incoming webhooks.
+
+Slack is an ordinary implementation of the Notifier protocol. Formatting that only Slack
+requires, such as escaping its markup characters, is kept in this module.
+"""
 
 from __future__ import annotations
 
@@ -14,12 +17,31 @@ from .builtin import post_json
 
 
 def escape(text: str) -> str:
-    """Slack treats &, < and > as markup."""
+    """Escape the characters Slack treats as markup (`&`, `<` and `>`).
+
+    Args:
+        text: The text to escape.
+
+    Returns:
+        The escaped text.
+    """
     return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
 def format_text(report: RunReport, max_failures: int = DEFAULTS.max_failures_in_message) -> str:
-    """Plain lines; links as bare URLs, which every Slack client renders."""
+    """Format a run report as plain Slack message text.
+
+    The message lists the title and meaning, labels, counts, preflight problems, failures,
+    regressions, any publication problem and links. Links are written as bare URLs, which all
+    Slack clients render. The result is redacted.
+
+    Args:
+        report: The run report to format.
+        max_failures: The maximum number of preflight problems and of failures to list.
+
+    Returns:
+        The message text.
+    """
     lines = [escape(f"{report.title()}: {report.meaning}")]
     if report.outcome.labels:
         lines.append(escape(", ".join(f"{k}={v}" for k, v in report.outcome.labels.items())))
@@ -46,16 +68,37 @@ def format_text(report: RunReport, max_failures: int = DEFAULTS.max_failures_in_
 
 @dataclass
 class SlackNotifier:
+    """A notifier that posts a run summary to a Slack incoming webhook.
+
+    Attributes:
+        url: The https webhook URL. It is registered with the redactor.
+        name: The notifier name.
+        max_failures: The maximum number of failures to list in a message.
+
+    Raises:
+        NotifierError: If the URL is not an https URL.
+    """
+
     url: str
     name: str = "slack"
     max_failures: int = DEFAULTS.max_failures_in_message
 
     def __post_init__(self) -> None:
+        """Validate the webhook URL and register it as a secret.
+
+        Raises:
+            NotifierError: If the URL is not an https URL.
+        """
         if not self.url.startswith("https://"):
             raise NotifierError("slack: needs an https webhook URL (use slack:env:VARIABLE)")
-        REDACTOR.add(self.url)  # the webhook URL is itself a credential
+        REDACTOR.add(self.url)  # The webhook URL is itself a credential.
 
     def send(self, report: RunReport) -> None:
+        """Post the formatted report to the webhook.
+
+        Args:
+            report: The run report to deliver.
+        """
         post_json(self.url, {"text": format_text(report, self.max_failures)})
 
 

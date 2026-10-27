@@ -1,20 +1,20 @@
 #!/usr/bin/env bash
-# run.sh: the local demo. Nothing to set up: no service, no network, no account. It starts a
-# small OpenAI-compatible serving stack on this machine (a gateway, a router behind it, an
-# engine behind that) and checks it with modelcheck, the example tool, the way you would check a
-# real one.
+# run.sh: run the local demonstration.
 #
 #   demo/local/run.sh
 #
-#   1. Last night: the stack is healthy. The run passes and is published as the nightly
-#      baseline.
-#   2. Today: the router has picked up a bug: it strips token usage from the answers it
-#      forwards. The case fails at the router and at the gateway in front of it, passes at the
-#      engine behind it, and the run places the defect at the router. The comparison with last
-#      night names the regressions.
+# Starts a simulated OpenAI-compatible serving stack on this machine (a gateway, a router and an
+# engine) and verifies it with modelcheck. No external service, network access or credentials
+# are required. The script performs two runs:
 #
-# Everything lands in demo/local/out/. Needs Python 3.11 or newer (PYTHON=... to choose one).
-# Exits 0 when the demo behaved as described.
+#   1. Baseline: the stack is healthy. The run passes and is archived as the nightly baseline.
+#   2. Regression: the router strips token usage from the completions it forwards. The affected
+#      case fails at the router and at the gateway, passes at the engine, and the run reports the
+#      router as the layer where the failure starts. The comparison with the baseline lists the
+#      regressions.
+#
+# Output is written to demo/local/out/. Requires Python 3.11 or later (set PYTHON to choose an
+# interpreter). Exits 0 when both runs produce the expected results.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 [ -x .venv/bin/modelcheck ] || scripts/install.sh
@@ -35,7 +35,7 @@ stop_stack() {
 }
 trap stop_stack EXIT
 
-# Start the fake stack on free ports, with the given defects; export its addresses.
+# Start the simulated stack on free ports with the given defects, and export its addresses.
 start_stack() {
   stop_stack
   local log="$out/stack.log" args=()
@@ -56,8 +56,8 @@ start_stack() {
   echo "stack: $(cat "$log")"
 }
 
-# The verdicts of a run as a table: one row per case, one column per layer (outermost first,
-# as layers.json lists them), and where each failure starts.
+# Print a run's verdicts as a table with one row per case and one column per layer (outermost
+# first, in the order of layers.json), followed by the layer where each failure starts.
 columns() {
   .venv/bin/python - "$1" <<'EOF'
 import json, sys

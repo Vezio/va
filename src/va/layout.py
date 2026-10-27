@@ -1,8 +1,9 @@
-"""Every name a run writes, and every schema id it stamps, in one place.
+"""File names and schema identifiers used by a run.
 
-Writers and readers agree on these, so a rename is one line and a reader never spells a name a
-writer does not. Schemas are versioned: adding a field is compatible, renaming or removing one
-needs a new version, because published runs outlive the code that wrote them.
+Writers and readers both use these constants, so a name is defined in a single place and a
+reader cannot refer to a file that no writer produces. Schemas are versioned. Adding a field is
+a compatible change, while renaming or removing a field requires a new version, because published
+runs remain in use after the code that wrote them has changed.
 """
 
 from __future__ import annotations
@@ -11,24 +12,26 @@ from enum import StrEnum
 
 
 class RunFile(StrEnum):
-    """Files and folders inside a run directory."""
+    """Files and directories inside a run directory."""
 
-    RESULTS = "results.jsonl"  # one ResultRecord per line
-    OUTCOME = "outcome.json"  # the RunOutcome
-    SUMMARY = "summary.md"  # a readable summary, fit for $GITHUB_STEP_SUMMARY
-    LOG = "run.log"  # the DEBUG log, redacted
-    ENV = "env.json"  # tool version and the choices made at start
-    EVIDENCE = "evidence"  # evidence/<target>/<case>[<variant>]/...
-    COMPARISON = "comparison.json"  # against earlier published runs
+    RESULTS = "results.jsonl"  # One ResultRecord per line.
+    OUTCOME = "outcome.json"  # The RunOutcome.
+    SUMMARY = "summary.md"  # A readable summary, suitable for $GITHUB_STEP_SUMMARY.
+    LOG = "run.log"  # The redacted DEBUG log.
+    ENV = "env.json"  # The tool version and the options chosen at start.
+    EVIDENCE = "evidence"  # Laid out as evidence/<target>/<case>[<variant>]/...
+    COMPARISON = "comparison.json"  # Comparison against earlier published runs.
     COMPARISON_MD = "comparison.md"
-    HTML = "report.html"  # opt-in
-    JUNIT = "junit.xml"  # opt-in
-    METRICS = "metrics.prom"  # opt-in
-    LAYERS = "layers.json"  # where each failure starts, for a stack declared as layers
-    MANIFEST = "MANIFEST.json"  # every other file hashed; written and published last
+    HTML = "report.html"  # Optional.
+    JUNIT = "junit.xml"  # Optional.
+    METRICS = "metrics.prom"  # Optional.
+    LAYERS = "layers.json"  # The layer where each failure starts, for a layered stack.
+    MANIFEST = "MANIFEST.json"  # Hashes of all other files; written and published last.
 
 
 class Schema(StrEnum):
+    """Versioned schema identifiers stamped into the files a run writes."""
+
     RESULTS = "va.results/1"
     OUTCOME = "va.outcome/1"
     MANIFEST = "va.manifest/1"
@@ -38,6 +41,6 @@ class Schema(StrEnum):
 
 
 class ArchiveKey(StrEnum):
-    """Keys a sink writes outside any run."""
+    """Keys that a sink writes outside any run."""
 
-    WRITE_CHECK = ".write-check"  # proves a destination is writable, before a run
+    WRITE_CHECK = ".write-check"  # Confirms that a destination is writable before a run.

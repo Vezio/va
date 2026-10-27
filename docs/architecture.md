@@ -153,3 +153,11 @@ demo/local/run.sh                    # the local demo, end to end
 
 CI also renders the Kubernetes manifests, runs shellcheck on every script and builds the image;
 `kind-demo.yaml` runs the kind demo and its checks.
+
+### Code documentation
+
+Every module, class, function and method has a docstring in the Google style (PEP 257, with
+`Args:`, `Returns:`, `Raises:` and `Attributes:` sections where they apply). Constructor
+arguments are documented in the class docstring. Ruff's pydocstyle rules (`D`, Google
+convention) enforce this for public names in CI; private helpers follow the same convention.
+Tools created with `scripts/new-app.sh` inherit the same lint configuration.

@@ -1,6 +1,6 @@
-# The Kubernetes path end to end, on a throwaway kind cluster: deploy/base with the demo
-# overlay, a triggered run published to an in-cluster S3 store, then the CronJob behaviours
-# (scheduling, no retries, exit codes, publication) asserted by demo/kind/test.sh.
+# End-to-end test of the Kubernetes deployment on a temporary kind cluster. Deploys deploy/base
+# with the demo overlay, publishes a triggered run to an in-cluster S3 store, and verifies the
+# CronJob behaviour (scheduling, no retries, exit codes, publication) with demo/kind/test.sh.
 name: Kind demo
 on:
   workflow_dispatch:

@@ -37,8 +37,14 @@ target-version = "py311"
 extend-exclude = ["examples/*/build"]
 
 [tool.ruff.lint]
-# T20 bans print(): all output goes through the logger tree (va.log).
-select = ["E", "F", "W", "I", "T20", "B", "UP"]
+# T20 bans print(); output goes through the logger tree (va.log).
+# D enforces Google-style docstrings. Constructor arguments are documented in the class
+# docstring, so D107 is disabled.
+select = ["E", "F", "W", "I", "T20", "B", "UP", "D"]
+ignore = ["D107"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
 
 [tool.mypy]
 python_version = "3.11"

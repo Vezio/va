@@ -1,5 +1,5 @@
-# In-cluster profile: targets are Service DNS names supplied through variables in app-settings
-# or app-secrets; nothing cluster-specific is committed.
+# In-cluster profile. Target addresses are Service DNS names supplied through variables in
+# app-settings or app-secrets, so no cluster-specific values are committed.
 name: example-service
 
 targets:

@@ -1,5 +1,8 @@
-"""End to end against the fake service: exit codes, evidence, publication, and each case
-proven to fail against its defect."""
+"""End-to-end tests of httpcheck against the fake service.
+
+The tests cover exit codes, recorded evidence, publication, the `job` command, and a failing
+run for each case against its matching defect.
+"""
 
 from __future__ import annotations
 
@@ -29,6 +32,10 @@ targets:
 
 @pytest.fixture
 def service(monkeypatch):
+    """Provide a running fake service, with its URL and token set in the environment.
+
+    The service is stopped and registered secrets are cleared after the test.
+    """
     fake = FakeService()
     monkeypatch.setenv("SVC_URL", fake.url)
     monkeypatch.setenv("SVC_TOKEN", fake.token)
@@ -39,23 +46,43 @@ def service(monkeypatch):
 
 @pytest.fixture
 def profile(tmp_path) -> Path:
+    """Provide the path to a profile with one target that declares every capability."""
     path = tmp_path / "fake.yaml"
     path.write_text(PROFILE, encoding="utf-8")
     return path
 
 
 def run(profile: Path, tmp_path: Path, *extra: str) -> tuple[int, Path]:
+    """Run `httpcheck run` in process with a run directory under `tmp_path`.
+
+    Args:
+        profile: Path to the profile file.
+        tmp_path: Temporary directory for the run directory.
+        *extra: Additional command-line arguments.
+
+    Returns:
+        The exit code and the run directory.
+    """
     run_dir = tmp_path / "run"
     code = build_app().main(["run", "--profile", str(profile), "--run-dir", str(run_dir), *extra])
     return code, run_dir
 
 
 def results(run_dir: Path) -> dict[str, dict]:
+    """Read the result records of a run, keyed by `case_id[variant]`.
+
+    Args:
+        run_dir: The run directory.
+
+    Returns:
+        The result records by key.
+    """
     lines = (run_dir / "results.jsonl").read_text().splitlines()
     return {f"{r['case_id']}[{r['variant']}]": r for r in map(json.loads, lines)}
 
 
 def test_healthy_service_passes_with_evidence(service, profile, tmp_path):
+    """Verify that a correct service passes every case and each result records its checks."""
     code, run_dir = run(profile, tmp_path)
     assert code == ExitCode.OK
     records = results(run_dir)
@@ -67,6 +94,7 @@ def test_healthy_service_passes_with_evidence(service, profile, tmp_path):
 
 
 def test_token_never_reaches_a_file(service, profile, tmp_path):
+    """Verify that the token does not appear in any run file, even with debug logging."""
     code, run_dir = run(profile, tmp_path, "--log-level", "DEBUG")
     assert code == ExitCode.OK
     for path in run_dir.rglob("*"):
@@ -87,6 +115,7 @@ def test_token_never_reaches_a_file(service, profile, tmp_path):
     ],
 )
 def test_each_case_fails_against_its_defect(service, profile, tmp_path, defect, value, case):
+    """Verify that each case fails against its defect and records the failing check."""
     setattr(service.defects, defect, value)
     code, run_dir = run(profile, tmp_path)
     assert code == ExitCode.FAILURES
@@ -96,7 +125,8 @@ def test_each_case_fails_against_its_defect(service, profile, tmp_path, defect, 
 
 
 def test_dead_target_is_preflight_not_a_failure(monkeypatch, profile, tmp_path):
-    monkeypatch.setenv("SVC_URL", "http://127.0.0.1:9")  # nothing listens on the discard port
+    """Verify that an unreachable target fails preflight and no case runs."""
+    monkeypatch.setenv("SVC_URL", "http://127.0.0.1:9")  # Port 9 (discard) has no listener.
     monkeypatch.setenv("SVC_TOKEN", "whatever-token")
     code, run_dir = run(profile, tmp_path)
     assert code == ExitCode.PREFLIGHT
@@ -106,18 +136,21 @@ def test_dead_target_is_preflight_not_a_failure(monkeypatch, profile, tmp_path):
 
 
 def test_missing_credential_is_preflight(monkeypatch, service, profile, tmp_path):
+    """Verify that an unset token variable fails preflight."""
     monkeypatch.delenv("SVC_TOKEN")
     code, _ = run(profile, tmp_path)
     assert code == ExitCode.PREFLIGHT
 
 
 def test_invalid_profile_is_usage(tmp_path):
+    """Verify that an invalid profile exits with the usage code."""
     bad = tmp_path / "bad.yaml"
     bad.write_text("name: x\ntargets:\n  - name: a\n    base_url_env: lower\n")
     assert build_app().main(["run", "--profile", str(bad), "--run-dir", str(tmp_path / "r")]) == 2
 
 
 def test_publish_to_file_writes_manifest_and_archive_is_comparable(service, profile, tmp_path):
+    """Verify that a published run has a manifest and serves as a baseline for compare."""
     archive = tmp_path / "archive"
     code, first = run(profile, tmp_path, "--remote-output", f"file://{archive}")
     assert code == ExitCode.OK
@@ -149,6 +182,7 @@ def test_publish_to_file_writes_manifest_and_archive_is_comparable(service, prof
 
 
 def test_unpublishable_destination_is_preflight(service, profile, tmp_path):
+    """Verify that a destination that cannot be written fails preflight."""
     blocker = tmp_path / "file"
     blocker.write_text("not a directory")
     code, _ = run(profile, tmp_path, "--remote-output", f"file://{blocker}/x")
@@ -156,6 +190,7 @@ def test_unpublishable_destination_is_preflight(service, profile, tmp_path):
 
 
 def test_job_runs_child_publishes_and_notifies(service, profile, tmp_path):
+    """Verify that `job` publishes the run and sends one notification without the token."""
     archive = tmp_path / "archive"
     env = dict(
         os.environ,
@@ -189,7 +224,8 @@ def test_job_runs_child_publishes_and_notifies(service, profile, tmp_path):
 
 
 def test_job_stops_an_overrunning_run_and_still_publishes(service, profile, tmp_path):
-    service.defects.health_delay_s = 3  # every health case now takes 3s
+    """Verify that `job` stops a run that exceeds its budget and still publishes it."""
+    service.defects.health_delay_s = 3  # Each health request now takes 3 seconds.
     archive = tmp_path / "archive"
     env = dict(os.environ, HTTPCHECK_RESULTS_URI=f"file://{archive}")
     done = subprocess.run(
@@ -218,6 +254,7 @@ def test_job_stops_an_overrunning_run_and_still_publishes(service, profile, tmp_
 
 
 def test_opt_in_flags_end_to_end(service, profile, tmp_path):
+    """Verify that workers, case timeout, HTML, JUnit and metrics output work together."""
     junit = tmp_path / "ci/junit.xml"
     metrics = tmp_path / "textfile/httpcheck.prom"
     code, run_dir = run(
@@ -238,21 +275,26 @@ def test_opt_in_flags_end_to_end(service, profile, tmp_path):
     assert junit.read_text().startswith("<?xml")
     assert 'httpcheck_run_exit_code{group="fake",tool="httpcheck"} 0' in metrics.read_text()
     assert service.token not in (run_dir / "report.html").read_text()
-    # Concurrent cases appended to the shared exchanges file without tearing a line.
+    # Each line must parse, which shows that concurrent cases did not interleave writes.
     for line in (run_dir / "exchanges.jsonl").read_text().splitlines():
         json.loads(line)
 
 
 @pytest.mark.parametrize("flag", [["--workers", "0"], ["--case-timeout", "0"]])
 def test_bad_opt_in_values_are_usage_errors(service, profile, tmp_path, flag):
+    """Verify that a zero worker count or case timeout is a usage error with no run directory."""
     code, run_dir = run(profile, tmp_path, *flag)
     assert code == ExitCode.USAGE
     assert not run_dir.exists(), "a usage error must not leave a run directory behind"
 
 
 def test_job_gives_its_run_a_shorter_budget_than_its_own(service, profile, tmp_path):
-    """The run stops starting cases --grace seconds before the job would stop it, so it ends
-    on its own and writes its outcome; the environment's budget does not reach the child."""
+    """Verify that `job` gives its child run a budget reduced by the grace period.
+
+    The child stops starting cases `--grace` seconds before the job would stop it, so that it
+    finishes normally and writes its outcome. The budget set in the environment is not passed
+    to the child.
+    """
     env = dict(os.environ, HTTPCHECK_RUN_BUDGET="999")
     done = subprocess.run(
         [
@@ -273,11 +315,12 @@ def test_job_gives_its_run_a_shorter_budget_than_its_own(service, profile, tmp_p
         timeout=120,
     )
     assert done.returncode == ExitCode.OK, done.stderr
-    assert "--budget 70" in done.stderr  # 100 - 30, logged with the child's command line
+    # The child budget is 100 minus the 30-second grace, as logged in its command line.
+    assert "--budget 70" in done.stderr
 
 
 def test_primary_output_piped_into_a_reader_that_stops_early_is_quiet():
-    """`httpcheck profile show ... | head -1` prints one line and no traceback."""
+    """Verify that `profile show` piped into `head -1` prints one line and no traceback."""
     profile = Path(__file__).parent.parent / "profiles" / "example.yaml"
     done = subprocess.run(
         f"{Path(sys.executable).parent / 'httpcheck'} profile show {profile} | head -1",

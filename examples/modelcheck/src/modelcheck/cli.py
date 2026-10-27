@@ -1,9 +1,13 @@
-"""`modelcheck`: check an OpenAI-compatible serving stack, layer by layer.
+"""Command-line interface for modelcheck, which checks a serving stack layer by layer.
 
-modelcheck profile validate PROFILE     offline: every problem, with its path
-modelcheck profile show PROFILE         what would run and what would skip, per layer
-modelcheck run --profile PROFILE        preflight, run, write the run directory
-modelcheck job --profile PROFILE        unattended: run, compare, publish, notify
+Commands:
+
+    modelcheck profile validate PROFILE   Validate a profile offline and report each problem
+                                          with its path.
+    modelcheck profile show PROFILE       Show which cases would run or skip on each layer.
+    modelcheck run --profile PROFILE      Run preflight checks and cases, and write the run
+                                          directory.
+    modelcheck job --profile PROFILE      Run unattended: run, compare, publish and notify.
 """
 
 from __future__ import annotations
@@ -39,8 +43,14 @@ PROG = "modelcheck"
 
 
 class State:
-    """What every case shares: the profile and one recording client per layer (thread-safe,
-    for --workers)."""
+    """State shared by all cases: the profile and one recording client per layer.
+
+    Client creation is guarded by a lock, so the state can be shared by parallel workers.
+
+    Args:
+        profile: The loaded profile.
+        run: The run directory that clients record exchanges into.
+    """
 
     def __init__(self, profile: Profile, run: RunDir):
         self.profile = profile
@@ -49,6 +59,14 @@ class State:
         self._lock = threading.Lock()
 
     def client(self, target: Target) -> RecordingClient:
+        """Return the recording client for a target, creating it on first use.
+
+        Args:
+            target: The layer to return a client for.
+
+        Returns:
+            The client bound to the target, its API key and its kind's adapter.
+        """
         with self._lock:
             if target.name not in self._clients:
                 token = REDACTOR.secret_from_env(target.key_env) if target.key_env else None
@@ -64,7 +82,18 @@ class State:
 
 
 def preflight_checks(profile: Profile, options: RunOptions) -> list[preflight.Check]:
-    """Before any case: every variable set, every layer answering, the destination writable."""
+    """Build the checks that must pass before any case runs.
+
+    The checks confirm that every referenced environment variable is set, that every layer
+    answers on its health endpoint, and that the results destination is writable.
+
+    Args:
+        profile: The loaded profile.
+        options: The run options, which provide the results destination.
+
+    Returns:
+        The preflight checks, in the order they run.
+    """
     checks: list[preflight.Check] = []
     for t in profile.targets:
         checks.append(preflight.env_set(t.base_url_env, kind="base_url"))
@@ -78,9 +107,17 @@ def preflight_checks(profile: Profile, options: RunOptions) -> list[preflight.Ch
 
 
 class RunCommand:
+    """The `run` command, which checks every layer that a profile declares."""
+
     name, help, passthrough = "run", "check every layer a profile declares", False
 
     def add_arguments(self, parser: argparse.ArgumentParser, app: App) -> None:
+        """Add the `--profile` option and the shared run options to the parser.
+
+        Args:
+            parser: The command's argument parser.
+            app: The application, which provides settings and their environment names.
+        """
         parser.add_argument(
             "--profile",
             type=Path,
@@ -90,9 +127,21 @@ class RunCommand:
         add_run_arguments(parser, app)
 
     def run(self, args: argparse.Namespace, app: App) -> int:
+        """Load the profile and execute a session against its targets.
+
+        Args:
+            args: The parsed command-line arguments.
+            app: The application.
+
+        Returns:
+            The session's exit code.
+
+        Raises:
+            UsageError: If no profile is given on the command line or in the environment.
+        """
         if not args.profile:
             raise UsageError(f"--profile (or {app.settings.name(Key.PROFILE)}) is required")
-        profile = load(Path(args.profile))  # an invalid profile exits 2
+        profile = load(Path(args.profile))  # An invalid profile exits with status 2.
         options = RunOptions.from_args(args, app)
         return Session(
             tool=app.prog,
@@ -118,9 +167,17 @@ class RunCommand:
 
 
 class ProfileCommand:
+    """The `profile` command, which validates or shows a profile without network access."""
+
     name, help, passthrough = "profile", "validate or show a profile, offline", False
 
     def add_arguments(self, parser: argparse.ArgumentParser, app: App) -> None:
+        """Add the action and profile path arguments to the parser.
+
+        Args:
+            parser: The command's argument parser.
+            app: The application.
+        """
         parser.add_argument(
             "action",
             choices=("validate", "show"),
@@ -129,6 +186,15 @@ class ProfileCommand:
         parser.add_argument("profile", type=Path, help="the profile file")
 
     def run(self, args: argparse.Namespace, app: App) -> int:
+        """Validate the profile, or print the stack and each case's run or skip status per layer.
+
+        Args:
+            args: The parsed command-line arguments.
+            app: The application.
+
+        Returns:
+            `ExitCode.OK` when the profile is valid.
+        """
         profile = load(args.profile)
         if args.action == "validate":
             emit(
@@ -149,7 +215,14 @@ class ProfileCommand:
 
 
 def _stack(profile: Profile) -> str:
-    """Each chain of layers, from the client inwards: `gateway (proxy) -> engine (engine)`."""
+    """Describe each chain of layers in the profile, from the client inwards.
+
+    Args:
+        profile: The loaded profile.
+
+    Returns:
+        The chains separated by semicolons, for example `gateway (proxy) -> engine (engine)`.
+    """
     inner = {t.behind for t in profile.targets if t.behind}
     chains = [
         " -> ".join(f"{t.name} ({t.kind})" for t in LayerKinds.chain(profile.targets, top.name))
@@ -160,6 +233,11 @@ def _stack(profile: Profile) -> str:
 
 
 def build_app() -> App:
+    """Build the modelcheck application with its commands and the built-in commands.
+
+    Returns:
+        The configured application.
+    """
     app = App(
         PROG,
         version=__version__,
@@ -170,4 +248,5 @@ def build_app() -> App:
 
 
 def main() -> None:
+    """Run the modelcheck command line and exit with its status."""
     run_app(build_app())

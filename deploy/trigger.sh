@@ -6,8 +6,8 @@
 #
 # The Job is the CronJob's template with its arguments replaced by
 # `job --label trigger=<trigger> --label <trigger>=<id> <extra...>`, so a triggered run is
-# configured exactly like the scheduled one. Prints the Job name; wait on it with your tooling.
-# Needs: get cronjobs, create jobs (the app-trigger Role).
+# configured exactly like a scheduled one. Prints the Job name for use with other tooling.
+# Requires permission to get CronJobs and create Jobs (the app-trigger Role).
 set -eu
 
 namespace="" cronjob="app" cli="kubectl" trigger="rollout" id=""
@@ -28,7 +28,8 @@ case "$cli" in kubectl | oc) ;; *) echo "trigger.sh: --cli must be kubectl or oc
 command -v jq >/dev/null || { echo "trigger.sh: needs jq" >&2; exit 2; }
 
 id="${id:-$(date -u +%Y%m%d%H%M%S)}"
-# Job names are at most 63 characters; a longer one keeps its start plus a checksum.
+# Job names are limited to 63 characters; longer names are truncated and suffixed with a
+# checksum.
 suffix=$(printf '%s' "$id" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9-' '-' | sed 's/^-*//; s/-*$//')
 job="${cronjob}-${trigger}-${suffix:-run}"
 if [ "${#job}" -gt 63 ]; then

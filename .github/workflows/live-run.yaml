@@ -1,7 +1,7 @@
-# A live run against a deployed system: nightly on a schedule, or on demand. The exit code
-# decides the job's colour, and the summary lands on the run page. Results are published to
-# the bucket under <group>/<run id>/ with the manifest last, and compared with earlier nightly
-# runs of the same group.
+# Live run against a deployed system, nightly on a schedule or on demand. The job status follows
+# the run's exit code, and the summary is added to the workflow run page. Results are published
+# to the bucket under <group>/<run id>/, with the manifest written last, and compared with
+# earlier nightly runs of the same group.
 #
 # Configure in the repository settings:
 #   variables: RESULTS_URI (s3://bucket/prefix), GROUP, AWS_ENDPOINT_URL_S3 (optional),

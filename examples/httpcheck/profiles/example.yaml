@@ -1,8 +1,9 @@
-# A committed profile names variables, never URLs or keys. Real values live in the
-# environment, or in a <name>.local.yaml copy that .gitignore excludes.
+# A committed profile names environment variables instead of containing URLs or keys. The
+# real values are set in the environment, or in a <name>.local.yaml copy that .gitignore
+# excludes.
 #
-# Declare what a CORRECT service does. When the target differs, the case fails and the team
-# triages it; the profile is not edited to turn the run green.
+# Declare how a correct service behaves. When a target differs, the case fails and the result
+# is triaged. The profile is not changed to make the run pass.
 name: example-service
 
 targets:
