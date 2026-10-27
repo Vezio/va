@@ -8,6 +8,10 @@ attribute each failure to the component, and the party, responsible for it. It a
 system that can be reached and observed: web services and APIs, gateways and load balancers,
 databases and queues, data pipelines, and the infrastructure and releases that change them.
 
+VA was originally developed to verify model-serving infrastructure: inference engines, the
+routers and gateways in front of them, and the rollouts that change them. That remains a primary
+use case, and the included demonstration is a model-serving example.
+
 A tool built on VA defines what to check. The framework provides what every verification tool
 needs around those checks: declarative profiles, recorded evidence, exit codes that attribute
 failures, reports, archival and comparison of runs, notifications, and unattended operation on
@@ -48,6 +52,7 @@ Built by Tyler **V**ezio Rimaldi ([@Vezio](https://github.com/Vezio)) and **A**l
 | Post-deployment verification | Run after a rollout, triggered from a pipeline or a Kubernetes rollout hook; the exit code gates promotion. |
 | Scheduled conformance checks | Run nightly as a CronJob or CI workflow; each run is archived and compared with earlier runs to report regressions and recoveries. |
 | Release and environment comparison | Run the same checks against staging and production, or against two versions, with one profile per environment. |
+| Model-serving infrastructure | Verify inference engines, model routers and API gateways layer by layer: API conformance, streaming, token accounting, error handling and latency, before and after each rollout. |
 | Layered systems | Check every layer of a request path and identify the layer where a defect starts, rather than only observing it at the edge. |
 | API and contract testing | Verify that services answer the interfaces they declare, including error responses, against declarations held in a profile. |
 | Operational readiness | Separate failures of the system under test from problems with credentials, connectivity or the test environment, so the right team is notified. |
@@ -62,15 +67,15 @@ git clone https://github.com/Vezio/va && cd va
 demo/local/run.sh
 ```
 
-The demonstration starts a simulated three-layer service on the local machine (a gateway, a
-router behind it and a backend behind the router) and verifies it with `modelcheck`, one of the
-example tools. The example happens to use an OpenAI-compatible inference API; the same approach
+The demonstration starts a simulated model-serving stack on the local machine: an inference
+engine with an OpenAI-compatible API, a router in front of it and a gateway in front of the
+router. It verifies the stack with `modelcheck`, one of the example tools. The same approach
 applies to any layered service. It performs two runs:
 
 1. **Baseline.** The stack is healthy. All checks pass and the run is archived as the baseline.
-2. **Regression.** A defect is introduced in the router, which now removes a field from the
-   responses it forwards. The affected check fails at the router and at the gateway in front of
-   it, and passes at the backend behind them. The run attributes the defect to the router, and
+2. **Regression.** A defect is introduced in the router, which now removes token usage from
+   the completions it forwards. The affected check fails at the router and at the gateway in front of
+   it, and passes at the engine behind them. The run attributes the defect to the router, and
    the comparison with the baseline reports the regression.
 
 ```
@@ -91,7 +96,7 @@ applies to any layered service. It performs two runs:
   regression: router chat.usage_adds_up: pass -> fail
 ```
 
-The authentication check is skipped behind the gateway by design: the router and backend do not
+The authentication check is skipped behind the gateway by design: the router and engine do not
 declare authentication, and the skip records that reason rather than reporting a pass. Each run
 also produces an HTML report and an archived copy in `demo/local/out/`.
 
@@ -159,7 +164,7 @@ and adds nothing.
 ```
 src/va/                the framework
 examples/httpcheck/    minimal example tool for HTTP services, used as the template for new tools
-examples/modelcheck/   example tool for a layered service (an inference API), used by the demonstration
+examples/modelcheck/   example tool for model-serving stacks, used by the demonstration
 demo/                  local and Kubernetes (kind) demonstrations
 docs/                  guides
 tests/                 the framework's test suite
